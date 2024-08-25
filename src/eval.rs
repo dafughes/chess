@@ -55,7 +55,7 @@ pub fn evaluate(board: &Board) -> Score {
     }
 
     // Evaluate from the perspective of the player who just moved
-    let color_moved = !board.color_to_move();
+    let color_moved = board.color_to_move();
     match color_moved {
         Color::White => score,
         Color::Black => -score,

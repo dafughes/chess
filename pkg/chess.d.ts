@@ -21,9 +21,10 @@ export class Game {
 */
   legal_moves(): (Move)[];
 /**
+* @param {number} depth
 * @returns {Move}
 */
-  best_move(): Move;
+  best_move(depth: number): Move;
 }
 /**
 */
@@ -63,7 +64,7 @@ export interface InitOutput {
   readonly game_piece_at: (a: number, b: number) => number;
   readonly game_make_move: (a: number, b: number) => void;
   readonly game_legal_moves: (a: number, b: number) => void;
-  readonly game_best_move: (a: number) => number;
+  readonly game_best_move: (a: number, b: number) => number;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;

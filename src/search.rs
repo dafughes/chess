@@ -1,14 +1,9 @@
-use std::{
-    cmp::Ordering,
-    sync::{atomic::AtomicBool, Arc},
-    vec,
-};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
     board::Board,
-    color::Color,
-    eval::{self, evaluate, mvv_lva, Score, DRAW, INF, MATE},
-    moves::{generate_moves, Move, MoveKind, Movelist},
+    eval::{evaluate, Score, DRAW, INF, MATE},
+    moves::{generate_moves, Move, MoveKind},
 };
 
 #[derive(Debug)]
@@ -136,7 +131,15 @@ pub fn quiescence_search(board: &Board, mut alpha: Score, beta: Score) -> Score 
     return alpha;
 }
 
-pub fn search(params: SearchParams, board: &Board, stopflag: Arc<AtomicBool>) -> Move {
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
+pub fn search(params: SearchParams, board: &Board) -> Move {
     let moves = generate_moves(board);
 
     if params.depth == 0 {
@@ -147,17 +150,16 @@ pub fn search(params: SearchParams, board: &Board, stopflag: Arc<AtomicBool>) ->
     let mut bestmove = Move::null();
 
     for mv in &moves {
-        if stopflag.load(std::sync::atomic::Ordering::SeqCst) {
-            break;
-        }
-
         let score = -negamax_alphabeta(&board.do_move(mv), -INF, INF, 1, params.depth as usize - 1);
-        println!("{}: {}", mv, score);
+
+        log(&format!("{}: {}", mv, score));
+        // println!("{}: {}", mv, score);
         if score > max {
             max = score;
             bestmove = mv;
         }
     }
+    log("");
 
     bestmove
 }

@@ -4,6 +4,7 @@ use crate::{
     board::Board,
     moves::{self, generate_moves, MoveKind},
     piece::{Piece, PieceKind},
+    search::{search, SearchParams},
     square::Square,
 };
 
@@ -116,13 +117,21 @@ impl Game {
             .collect()
     }
 
-    pub fn best_move(&mut self) -> Move {
-        let moves = generate_moves(&self.board);
+    pub fn best_move(&mut self, depth: u32) -> Move {
+        let params = SearchParams {
+            wtime: 0,
+            btime: 0,
+            winc: 0,
+            binc: 0,
+            movestogo: 0,
+            depth,
+            nodes: 0,
+            mate: 0,
+            movetime: 0,
+            infinite: false,
+        };
+        let mv = search(params, &self.board);
 
-        moves
-            .into_iter()
-            .choose(&mut self.rng)
-            .map(|m| Move::from_internal_move(m))
-            .unwrap()
+        Move::from_internal_move(mv)
     }
 }

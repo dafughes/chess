@@ -139,10 +139,11 @@ export class Game {
         }
     }
     /**
+    * @param {number} depth
     * @returns {Move}
     */
-    best_move() {
-        const ret = wasm.game_best_move(this.__wbg_ptr);
+    best_move(depth) {
+        const ret = wasm.game_best_move(this.__wbg_ptr, depth);
         return Move.__wrap(ret);
     }
 }
@@ -262,6 +263,9 @@ function __wbg_get_imports() {
     imports.wbg.__wbg_move_new = function(arg0) {
         const ret = Move.__wrap(arg0);
         return addHeapObject(ret);
+    };
+    imports.wbg.__wbg_log_c018d1be03a5ab8d = function(arg0, arg1) {
+        console.log(getStringFromWasm0(arg0, arg1));
     };
     imports.wbg.__wbindgen_object_clone_ref = function(arg0) {
         const ret = getObject(arg0);

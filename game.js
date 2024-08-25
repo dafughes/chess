@@ -182,7 +182,7 @@ init().then(() => {
 
         board.draw(game);
 
-        const opp_move = game.best_move();
+        const opp_move = game.best_move(4);
         game.make_move(opp_move);
 
         board.draw(game);
