@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        <meta charset="utf-8"/>
+        <title>chess</title>
+    </head>
+
+    <body>
+        <script type="module">
+            import init, {Rank, File, Color, Piece, PieceKind, Square, Board, Move, MoveKind, perft} from "./pkg/chess.js";
+
+            init().then(() => {
+                
+                let board = Board.default();
+
+                console.log(perft(board, 3));
+            })
+        </script>
+    </body>
+</html>
