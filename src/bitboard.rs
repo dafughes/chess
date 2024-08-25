@@ -153,35 +153,6 @@ impl Bitboard {
             | Self::ray(from, Direction::W, blockers)
     }
 
-    // pub fn bishop_attacks(from: Square, blockers: Bitboard) -> Self {
-    //     let bb = Bitboard::new(from);
-    //     let result = Self::kogge_stone_pos(bb.0, blockers.0, Bitboard::file(File::H).0, 9)
-    //         | Self::kogge_stone_neg(bb.0, blockers.0, Bitboard::file(File::H).0, -7)
-    //         | Self::kogge_stone_neg(bb.0, blockers.0, Bitboard::file(File::A).0, -9)
-    //         | Self::kogge_stone_pos(bb.0, blockers.0, Bitboard::file(File::A).0, 7);
-    //     Self(result)
-    //     // let result = Self::dumb7fill_pos(bb.0, blockers.0, Self::file(File::H).0, 9)
-    //     //     | Self::dumb7fill_neg(bb.0, blockers.0, Self::file(File::H).0, -7)
-    //     //     | Self::dumb7fill_neg(bb.0, blockers.0, Self::file(File::A).0, -9)
-    //     //     | Self::dumb7fill_pos(bb.0, blockers.0, Self::file(File::A).0, 7);
-
-    //     // Self(result) & !bb
-    // }
-
-    // pub fn rook_attacks(from: Square, blockers: Bitboard) -> Self {
-    //     let bb = Bitboard::new(from);
-    //     // let result = Self::dumb7fill_pos(bb.0, blockers.0, 0, 8)
-    //     //     | Self::dumb7fill_pos(bb.0, blockers.0, Self::file(File::H).0, 1)
-    //     //     | Self::dumb7fill_neg(bb.0, blockers.0, 0, -8)
-    //     //     | Self::dumb7fill_neg(bb.0, blockers.0, Self::file(File::A).0, -1);
-    //     // Self(result) & !bb
-    //     let result = Self::kogge_stone_pos(bb.0, blockers.0, 0, 8)
-    //         | Self::kogge_stone_pos(bb.0, blockers.0, Bitboard::file(File::H).0, 1)
-    //         | Self::kogge_stone_neg(bb.0, blockers.0, 0, -8)
-    //         | Self::kogge_stone_neg(bb.0, blockers.0, Bitboard::file(File::A).0, -1);
-    //     Self(result)
-    // }
-
     #[inline(always)]
     pub fn rank(rank: Rank) -> Self {
         Bitboard(0xFF << (rank.to_index() * 8))
@@ -225,68 +196,6 @@ impl Bitboard {
         //     }
         // }
         // Bitboard::EMPTY
-    }
-
-    fn dumb7fill_pos(mut bb: u64, blockers: u64, edge: u64, shift: isize) -> u64 {
-        let mut result = bb;
-        let empty = !blockers & !edge;
-
-        bb = (bb << shift) & empty;
-        result |= bb;
-        bb = (bb << shift) & empty;
-        result |= bb;
-        bb = (bb << shift) & empty;
-        result |= bb;
-        bb = (bb << shift) & empty;
-        result |= bb;
-        bb = (bb << shift) & empty;
-        result |= bb;
-
-        result |= (bb << shift) & empty;
-        result |= (result << shift) & empty;
-        result | result << shift
-    }
-
-    fn dumb7fill_neg(mut bb: u64, blockers: u64, edge: u64, shift: isize) -> u64 {
-        let mut result = bb;
-        let empty = !blockers & !edge;
-        let shift: isize = -shift;
-
-        bb = (bb >> shift) & empty;
-        result |= bb;
-        bb = (bb >> shift) & empty;
-        result |= bb;
-        bb = (bb >> shift) & empty;
-        result |= bb;
-        bb = (bb >> shift) & empty;
-        result |= bb;
-        bb = (bb >> shift) & empty;
-        result |= bb;
-
-        result |= (bb >> shift) & empty;
-        result |= (result >> shift) & empty;
-        result | result >> shift
-    }
-
-    fn kogge_stone_pos(mut bb: u64, blockers: u64, edge: u64, shift: isize) -> u64 {
-        let mut empty = !blockers & !edge;
-        bb |= empty & (bb << shift);
-        empty &= empty << shift;
-        bb |= empty & (bb << (shift * 2));
-        empty &= empty << (shift * 2);
-        bb |= empty & (bb << (shift * 4));
-        (bb & empty) << shift
-    }
-
-    fn kogge_stone_neg(mut bb: u64, blockers: u64, edge: u64, shift: isize) -> u64 {
-        let shift = -shift;
-        let mut empty = !blockers & !edge;
-        bb |= empty & (bb >> shift);
-        empty &= empty >> shift;
-        bb |= empty & (bb >> (shift * 2));
-        empty &= empty >> (shift * 2);
-        bb |= empty & (bb >> (shift * 4));
-        (bb & empty) >> shift
     }
 }
 

@@ -29,7 +29,7 @@ impl Rank {
         }
     }
 
-    pub(crate) fn to_index(&self) -> usize {
+    pub(crate) const fn to_index(&self) -> usize {
         *self as usize
     }
 }
@@ -61,7 +61,7 @@ impl File {
         }
     }
 
-    pub(crate) fn to_index(&self) -> usize {
+    pub(crate) const fn to_index(&self) -> usize {
         *self as usize
     }
 }
@@ -281,13 +281,13 @@ mod tests {
 
     #[test]
     fn square_to_index() {
-        assert_eq!(Square::E4.to_index(), 28);
-        assert_eq!(Square::H6.to_index(), 47);
-        assert_eq!(Square::B2.to_index(), 9);
-        assert_eq!(Square::A5.to_index(), 32);
-        assert_eq!(Square::C3.to_index(), 18);
-        assert_eq!(Square::C1.to_index(), 2);
-        assert_eq!(Square::D4.to_index(), 27);
-        assert_eq!(Square::F8.to_index(), 61);
+        assert_eq!(Square::new(Rank::Fourth, File::E).to_index(), 28);
+        assert_eq!(Square::new(Rank::Sixth, File::H).to_index(), 47);
+        assert_eq!(Square::new(Rank::Second, File::B).to_index(), 9);
+        assert_eq!(Square::new(Rank::Fifth, File::A).to_index(), 32);
+        assert_eq!(Square::new(Rank::Third, File::C).to_index(), 18);
+        assert_eq!(Square::new(Rank::First, File::C).to_index(), 2);
+        assert_eq!(Square::new(Rank::Fourth, File::D).to_index(), 27);
+        assert_eq!(Square::new(Rank::Eighth, File::F).to_index(), 61);
     }
 }

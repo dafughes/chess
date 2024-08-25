@@ -7,8 +7,6 @@ use crate::{
     square::{File, Rank, Square},
 };
 
-const SQUARE_COUNT: usize = 64;
-
 #[derive(Clone)]
 pub struct Board {
     bb: [Bitboard; 4],
