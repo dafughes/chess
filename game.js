@@ -179,8 +179,7 @@ class Game {
     this.opponentLastMoveSquares = [];
     this.higlightSquares = [];
 
-    // this.board = Board.default();
-    this.board = Board.from_fen("8/3P4/8/k7/8/K7/8/8 w - -");
+    this.board = Board.default();
 
     this.lightColor = "rgb(219, 232, 200)";
     this.darkColor = "rgb(72, 79, 61)";
