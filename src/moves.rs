@@ -1,5 +1,7 @@
 use std::{fmt, ops};
 
+use wasm_bindgen::prelude::wasm_bindgen;
+
 use crate::{
     bitboard::{Bitboard, Direction},
     board::Board,
@@ -9,6 +11,7 @@ use crate::{
     square::{Rank, Square},
 };
 
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub enum MoveKind {
     Quiet,
@@ -16,10 +19,42 @@ pub enum MoveKind {
     Double,
     EnPassant,
     Castling,
-    Prom(PieceKind),
-    PromCap(PieceKind),
+    PromKnight,
+    PromBishop,
+    PromRook,
+    PromQueen,
+    PromCapKnight,
+    PromCapBishop,
+    PromCapRook,
+    PromCapQueen,
 }
 
+impl MoveKind {
+    /*pub(crate) fn is_promotion(self) -> bool {
+        match self {
+            MoveKind::Quiet
+            | MoveKind::Cap
+            | MoveKind::Double
+            | MoveKind::EnPassant
+            | MoveKind::Castling => false,
+            _ => true,
+        }
+    }*/
+
+    pub(crate) fn is_capture(self) -> bool {
+        match self {
+            MoveKind::Cap
+            | MoveKind::EnPassant
+            | MoveKind::PromCapQueen
+            | MoveKind::PromCapRook
+            | MoveKind::PromCapBishop
+            | MoveKind::PromCapKnight => true,
+            _ => false,
+        }
+    }
+}
+
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub struct Move(u16);
 
@@ -30,62 +65,13 @@ pub struct Move(u16);
 //     kind: MoveKind,
 // }
 
+#[wasm_bindgen]
 impl Move {
-    fn bits_to_movekind(bits: u16) -> MoveKind {
-        match bits >> 12 {
-            0 => MoveKind::Quiet,
-            1 => MoveKind::Cap,
-            2 => MoveKind::Double,
-            3 => MoveKind::EnPassant,
-            4 => MoveKind::Castling,
-            5 => MoveKind::Prom(PieceKind::Knight),
-            6 => MoveKind::Prom(PieceKind::Bishop),
-            7 => MoveKind::Prom(PieceKind::Rook),
-            8 => MoveKind::Prom(PieceKind::Queen),
-            9 => MoveKind::PromCap(PieceKind::Knight),
-            10 => MoveKind::PromCap(PieceKind::Bishop),
-            11 => MoveKind::PromCap(PieceKind::Rook),
-            12 => MoveKind::PromCap(PieceKind::Queen),
-            _ => unreachable!(),
-        }
-    }
-
-    fn movekind_to_bits(kind: MoveKind) -> usize {
-        /*
-           0 = quiet
-           1 = capture
-           2 = double
-           3 = enpassant
-           4 = castle
-           5 = n
-           6 = b
-           7 = r
-           8 = q
-           9 = nx
-           10 = bx
-           11 = rx
-           12 = qx
-        */
-        match kind {
-            MoveKind::Quiet => 0,
-            MoveKind::Cap => 1 << 12,
-            MoveKind::Double => 2 << 12,
-            MoveKind::EnPassant => 3 << 12,
-            MoveKind::Castling => 4 << 12,
-            MoveKind::Prom(piece) => (4 + piece.to_index()) << 12,
-            MoveKind::PromCap(piece) => (8 + piece.to_index()) << 12,
-        }
-    }
-
+    #[wasm_bindgen(constructor)]
     pub fn new(from: Square, to: Square, kind: MoveKind) -> Self {
         let bits = from.to_index() | (to.to_index() << 6) | Self::movekind_to_bits(kind);
         Self(bits as u16)
     }
-
-    // #[inline(always)]
-    // pub fn new(from: Square, to: Square, kind: MoveKind) -> Self {
-    //     Self { from, to, kind }
-    // }
 
     #[inline(always)]
     pub fn from(&self) -> Square {
@@ -102,29 +88,38 @@ impl Move {
         Self::bits_to_movekind(self.0 & 0xF000)
     }
 
-    // #[inline(always)]
-    // pub fn from(&self) -> Square {
-    //     self.from
-    // }
+    pub fn promotion_kind(&self) -> Option<PieceKind> {
+        match self.kind() {
+            MoveKind::PromCapQueen | MoveKind::PromQueen => Some(PieceKind::Queen),
+            MoveKind::PromCapRook | MoveKind::PromRook => Some(PieceKind::Rook),
+            MoveKind::PromCapBishop | MoveKind::PromBishop => Some(PieceKind::Bishop),
+            MoveKind::PromCapKnight | MoveKind::PromKnight => Some(PieceKind::Knight),
+            _ => None,
+        }
+    }
 
-    // #[inline(always)]
-    // pub fn to(&self) -> Square {
-    //     self.to
-    // }
+    fn bits_to_movekind(bits: u16) -> MoveKind {
+        match bits >> 12 {
+            0 => MoveKind::Quiet,
+            1 => MoveKind::Cap,
+            2 => MoveKind::Double,
+            3 => MoveKind::EnPassant,
+            4 => MoveKind::Castling,
+            5 => MoveKind::PromKnight,
+            6 => MoveKind::PromBishop,
+            7 => MoveKind::PromRook,
+            8 => MoveKind::PromQueen,
+            9 => MoveKind::PromCapKnight,
+            10 => MoveKind::PromCapBishop,
+            11 => MoveKind::PromCapRook,
+            12 => MoveKind::PromCapQueen,
+            _ => unreachable!(),
+        }
+    }
 
-    // #[inline(always)]
-    // pub fn kind(&self) -> MoveKind {
-    //     self.kind
-    // }
-
-    // #[inline(always)]
-    // pub fn null() -> Self {
-    //     Self {
-    //         from: Square::A1,
-    //         to: Square::A1,
-    //         kind: MoveKind::Quiet,
-    //     }
-    // }
+    fn movekind_to_bits(kind: MoveKind) -> usize {
+        (kind as usize) << 12
+    }
 
     #[inline(always)]
     pub fn null() -> Self {
@@ -142,11 +137,9 @@ impl fmt::Display for Move {
             char::from(self.to().file()),
             char::from(self.to().rank())
         )?;
-        match self.kind() {
-            MoveKind::Prom(piece) | MoveKind::PromCap(piece) => {
-                write!(f, "{}", char::from(piece))
-            }
-            _ => Ok(()),
+        match self.promotion_kind() {
+            Some(piece) => write!(f, "{}", char::from(piece)),
+            None => Ok(()),
         }
     }
 }
@@ -239,10 +232,10 @@ fn pawn_moves(board: &Board, pieces: Bitboard, allowed_squares: Bitboard, moves:
     // promotions
     for to in dest & promotion_rank {
         let from = to - up;
-        moves.push(Move::new(from, to, MoveKind::Prom(PieceKind::Queen)));
-        moves.push(Move::new(from, to, MoveKind::Prom(PieceKind::Rook)));
-        moves.push(Move::new(from, to, MoveKind::Prom(PieceKind::Bishop)));
-        moves.push(Move::new(from, to, MoveKind::Prom(PieceKind::Knight)));
+        moves.push(Move::new(from, to, MoveKind::PromQueen));
+        moves.push(Move::new(from, to, MoveKind::PromRook));
+        moves.push(Move::new(from, to, MoveKind::PromBishop));
+        moves.push(Move::new(from, to, MoveKind::PromKnight));
     }
 
     // non-promotions
@@ -270,10 +263,10 @@ fn pawn_moves(board: &Board, pieces: Bitboard, allowed_squares: Bitboard, moves:
         // promotions
         for to in dest & promotion_rank {
             let from = to - dir;
-            moves.push(Move::new(from, to, MoveKind::PromCap(PieceKind::Queen)));
-            moves.push(Move::new(from, to, MoveKind::PromCap(PieceKind::Rook)));
-            moves.push(Move::new(from, to, MoveKind::PromCap(PieceKind::Bishop)));
-            moves.push(Move::new(from, to, MoveKind::PromCap(PieceKind::Knight)));
+            moves.push(Move::new(from, to, MoveKind::PromCapQueen));
+            moves.push(Move::new(from, to, MoveKind::PromCapRook));
+            moves.push(Move::new(from, to, MoveKind::PromCapBishop));
+            moves.push(Move::new(from, to, MoveKind::PromCapKnight));
         }
 
         // non-promotions
@@ -393,10 +386,12 @@ fn calculate_attacks(board: &Board, attacker: Color) -> (Bitboard, Bitboard, Bit
     (attacks, attacks_through_king, checking_pieces)
 }
 
+#[inline(always)]
 fn pinned_moves(board: &Board, pinned: Bitboard, allowed_squares: Bitboard, moves: &mut Movelist) {
     let all: Bitboard = board.pieces();
 
-    match board.at(pinned.first().unwrap()).unwrap().kind() {
+    let square = pinned.first().unwrap();
+    match board.at(&square).unwrap().kind() {
         PieceKind::Pawn => pawn_moves(board, pinned, allowed_squares, moves),
         PieceKind::Bishop => add_moves(
             board,
@@ -433,6 +428,12 @@ pub fn generate_moves(board: &Board) -> Movelist {
     let enemy = board.pieces_by_color(them);
     let all: Bitboard = board.pieces();
 
+    // let pawns = board.pieces_by_kind(PieceKind::Pawn);
+    let knights = board.pieces_by_kind(PieceKind::Knight);
+    let bishops = board.pieces_by_kind(PieceKind::Bishop);
+    let rooks = board.pieces_by_kind(PieceKind::Rook);
+    let queens = board.pieces_by_kind(PieceKind::Queen);
+
     let king_square = (board.pieces_by_kind(PieceKind::King) & friendly)
         .first()
         .unwrap();
@@ -445,7 +446,7 @@ pub fn generate_moves(board: &Board) -> Movelist {
         // Only king evasions
         add_moves(
             board,
-            board.pieces_by_kind(PieceKind::King) & friendly,
+            friendly & king_square,
             !attacks_through_king & !friendly,
             |from| Bitboard::king_attacks(from),
             &mut moves,
@@ -464,7 +465,7 @@ pub fn generate_moves(board: &Board) -> Movelist {
         for from in checking_pieces {
             blocking_squares |= Bitboard::between(from, king_square);
         }
-        allowed_squares |= !board.pieces_by_color(us) & (blocking_squares | checking_pieces);
+        allowed_squares |= !friendly & (blocking_squares | checking_pieces);
         pawn_allowed_squares |= allowed_squares;
 
         // En passantable checker
@@ -472,19 +473,19 @@ pub fn generate_moves(board: &Board) -> Movelist {
             Some(ep) => {
                 let pawn = Bitboard::new(ep).shift(them.up());
                 if (pawn & checking_pieces).is_non_empty() {
-                    pawn_allowed_squares |= Bitboard::new(ep);
+                    pawn_allowed_squares |= ep;
                 }
             }
             None => (),
         }
     } else {
         // Else pieces can move anywhere except capture own pieces
-        allowed_squares = !board.pieces_by_color(us);
+        allowed_squares = !friendly;
         pawn_allowed_squares = allowed_squares;
 
         match board.en_passant_square() {
             Some(ep) => {
-                pawn_allowed_squares |= Bitboard::new(ep);
+                pawn_allowed_squares |= ep;
             }
             None => (),
         }
@@ -494,65 +495,71 @@ pub fn generate_moves(board: &Board) -> Movelist {
     let mut pinned_pieces = Bitboard::EMPTY;
 
     // All potential pinners
-    let pinners = (((board.pieces_by_kind(PieceKind::Bishop)
-        | board.pieces_by_kind(PieceKind::Queen))
-        & Bitboard::bishop_mask(king_square))
-        | ((board.pieces_by_kind(PieceKind::Rook) | board.pieces_by_kind(PieceKind::Queen))
-            & Bitboard::rook_mask(king_square)))
+    let pinners = (((bishops | queens) & Bitboard::bishop_mask(king_square))
+        | ((rooks | queens) & Bitboard::rook_mask(king_square)))
         & enemy;
 
-    for square in pinners {
-        let between = Bitboard::between(king_square, square);
-        let pinned = between & all;
+    // Handle possible en passant scenarios differently
+    if let Some(ep_square) = board.en_passant_square() {
+        for square in pinners {
+            let between = Bitboard::between(king_square, square);
+            let pinned = between & all;
 
-        let num_pinned = pinned.popcount();
+            let num_pinned = pinned.popcount();
 
-        // If there is only one our piece between the slider and our king, the piece is pinned and we process its moves now.
-        if num_pinned == 1 && (pinned & friendly).is_non_empty() {
-            // Remove piece from normal move generation
-            pinned_pieces |= pinned;
+            // If there is only one our piece between the slider and our king, the piece is pinned and we process its moves now.
+            if num_pinned == 1 && (pinned & friendly).is_non_empty() {
+                // Remove piece from normal move generation
+                pinned_pieces |= pinned;
 
-            // Piece can only move between the pinner and king, or capture it.
-            let allowed = between | square;
+                // Piece can only move between the pinner and king, or capture it.
+                let allowed = between | square;
 
-            pinned_moves(board, pinned, allowed_squares & allowed, &mut moves);
-        }
-
-        // En passant pin
-        match board.en_passant_square() {
-            Some(ep_square) => {
-                // Possible en passantable enemy pawn
-                let pawn = Bitboard::new(ep_square + them.up());
-
-                // Opponent pawn that is between our king and an enemy slider
-                if pinned == pawn {
-                    // If ep square is not between king and slider
-                    if (Bitboard::new(ep_square) & between).is_empty() {
-                        // We can't en passant
-                        pawn_allowed_squares &= !Bitboard::new(ep_square);
-                    }
-                }
-
-                // Case where 2 pawns, ours and enemys are between our king and an enemy slider -> can't en passant
-                if num_pinned == 2
-                    && (pinned & pawn).is_non_empty()
-                    && (Bitboard::new(ep_square) & between).is_empty()
-                {
-                    pawn_allowed_squares &= !Bitboard::new(ep_square);
-                }
+                pinned_moves(board, pinned, allowed_squares & allowed, &mut moves);
             }
-            None => (),
+
+            // Possible en passantable enemy pawn
+            let pawn = Bitboard::new(ep_square + them.up());
+
+            // En passant pin
+            // Opponent pawn that is between our king and an enemy slider
+            // And if ep square is not between king and slider
+            if pinned == pawn && (between & ep_square).is_empty() {
+                // We can't en passant
+                pawn_allowed_squares &= !Bitboard::new(ep_square);
+            }
+
+            // Case where 2 pawns, ours and enemys are between our king and an enemy slider -> can't en passant
+            if num_pinned == 2 && (pinned & pawn).is_non_empty() && (between & ep_square).is_empty()
+            {
+                pawn_allowed_squares &= !Bitboard::new(ep_square);
+            }
+        }
+    } else {
+        for square in pinners {
+            let between = Bitboard::between(king_square, square);
+            let pinned = between & all;
+
+            let num_pinned = pinned.popcount();
+
+            // If there is only one our piece between the slider and our king, the piece is pinned and we process its moves now.
+            if num_pinned == 1 && (pinned & friendly).is_non_empty() {
+                // Remove piece from normal move generation
+                pinned_pieces |= pinned;
+
+                // Piece can only move between the pinner and king, or capture it.
+                let allowed = between | square;
+
+                pinned_moves(board, pinned, allowed_squares & allowed, &mut moves);
+            }
         }
     }
-
-    // println!("{}", !attacks_through_king);
-    // println!("{}", !attacks);
 
     // Moves for remaining pieces
     let pieces = board.pieces_by_kind(PieceKind::Pawn) & friendly & !pinned_pieces;
     pawn_moves(board, pieces, pawn_allowed_squares, &mut moves);
 
-    let pieces = board.pieces_by_kind(PieceKind::Knight) & friendly & !pinned_pieces;
+    let pieces = knights & friendly & !pinned_pieces;
     add_moves(
         board,
         pieces,
@@ -561,9 +568,7 @@ pub fn generate_moves(board: &Board) -> Movelist {
         &mut moves,
     );
 
-    let pieces = (board.pieces_by_kind(PieceKind::Bishop) | board.pieces_by_kind(PieceKind::Queen))
-        & friendly
-        & !pinned_pieces;
+    let pieces = (bishops | queens) & friendly & !pinned_pieces;
     add_moves(
         board,
         pieces,
@@ -572,9 +577,7 @@ pub fn generate_moves(board: &Board) -> Movelist {
         &mut moves,
     );
 
-    let pieces = (board.pieces_by_kind(PieceKind::Rook) | board.pieces_by_kind(PieceKind::Queen))
-        & friendly
-        & !pinned_pieces;
+    let pieces = (rooks | queens) & friendly & !pinned_pieces;
     add_moves(
         board,
         pieces,
@@ -583,7 +586,7 @@ pub fn generate_moves(board: &Board) -> Movelist {
         &mut moves,
     );
 
-    let pieces = board.pieces_by_kind(PieceKind::King) & friendly;
+    let pieces = friendly & king_square;
     add_moves(
         board,
         pieces,
@@ -593,66 +596,36 @@ pub fn generate_moves(board: &Board) -> Movelist {
     );
 
     // Castlings
-    // Not in check
-    if num_checkers == 0 {
-        // Has castling rights
-        if board.has_castling_rights(CastlingRights::Queenside(us)) {
-            // Check that squares between rook and king are clear
-            // And king travel squares are not attacked
-            let can_castle = match us {
-                Color::White => {
-                    let travel = Bitboard::new(Square::C1) | Square::D1;
-                    let extra = Bitboard::new(Square::B1);
-                    ((travel & attacks) | ((extra | travel) & all)).is_empty()
-                }
-                Color::Black => {
-                    let travel = Bitboard::new(Square::C8) | Square::D8;
-                    let extra = Bitboard::new(Square::B8);
-                    ((travel & attacks) | ((extra | travel) & all)).is_empty()
-                }
-            };
+    let (king_travel, middle_squares) = match us {
+        Color::White => (Bitboard::from_u64(28), Bitboard::from_u64(14)),
+        Color::Black => (Bitboard::from_u64(28 << 56), Bitboard::from_u64(14 << 56)),
+    };
 
-            if can_castle {
-                moves.push(Move::new(
-                    king_square,
-                    Square::from_index(king_square.to_index() - 2),
-                    MoveKind::Castling,
-                ));
-            }
+    let can_castle = board.has_castling_rights(CastlingRights::Queenside(us))
+        && ((king_travel & attacks) | (middle_squares & all)).is_empty();
 
-            // let middle_squares = match us {
-            //     Color::White => Bitboard::new(Square::B1) | Square::C1 | Square::D1,
-            //     Color::Black => Bitboard::new(Square::B8) | Square::C8 | Square::D8,
-            // };
+    if can_castle {
+        moves.push(Move::new(
+            king_square,
+            Square::from_index(king_square.to_index() - 2),
+            MoveKind::Castling,
+        ));
+    }
 
-            // if (middle_squares & all).is_empty() {
-            //     if (travel_squares & attacks).is_empty() {
-            //         moves.push(Move::new(
-            //             king_square,
-            //             Square::from_index(king_square.to_index() - 2),
-            //             MoveKind::Castling,
-            //         ));
-            //     }
-            // }
-        }
-        if board.has_castling_rights(CastlingRights::Kingside(us)) {
-            // Check that squares between rook and king are clear
-            let middle_squares = match us {
-                Color::White => Bitboard::new(Square::F1) | Square::G1,
-                Color::Black => Bitboard::new(Square::F8) | Square::G8,
-            };
+    let (king_travel, middle_squares) = match us {
+        Color::White => (Bitboard::from_u64(112), Bitboard::from_u64(96)),
+        Color::Black => (Bitboard::from_u64(112 << 56), Bitboard::from_u64(96 << 56)),
+    };
 
-            if (middle_squares & all).is_empty() {
-                // And king travel squares are not attacked
-                if (middle_squares & attacks).is_empty() {
-                    moves.push(Move::new(
-                        king_square,
-                        Square::from_index(king_square.to_index() + 2),
-                        MoveKind::Castling,
-                    ));
-                }
-            }
-        }
+    let can_castle = board.has_castling_rights(CastlingRights::Kingside(us))
+        && ((king_travel & attacks) | (middle_squares & all)).is_empty();
+
+    if can_castle {
+        moves.push(Move::new(
+            king_square,
+            Square::from_index(king_square.to_index() + 2),
+            MoveKind::Castling,
+        ));
     }
 
     moves

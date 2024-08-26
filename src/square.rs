@@ -1,7 +1,10 @@
 use std::ops;
 
+use wasm_bindgen::prelude::wasm_bindgen;
+
 use crate::bitboard::Direction;
 
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Rank {
     First,
@@ -34,6 +37,7 @@ impl Rank {
     }
 }
 
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum File {
     A,
@@ -66,9 +70,11 @@ impl File {
     }
 }
 
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Square(u8);
 
+#[wasm_bindgen]
 impl Square {
     /// # Example
     /// ```
@@ -79,6 +85,7 @@ impl Square {
     /// assert_eq!(Square::new(Rank::Second, File::F), Square::F2);
     /// assert_eq!(Square::new(Rank::First, File::A), Square::A1);
     /// ```
+    #[wasm_bindgen(constructor)]
     pub fn new(rank: Rank, file: File) -> Self {
         Self(((rank.to_index() << 3) + file.to_index()) as u8)
     }
@@ -113,15 +120,23 @@ impl Square {
         File::from_index(self.0 as usize & 7)
     }
 
-    pub(crate) const fn from_index(index: usize) -> Self {
+    pub(crate) const fn from_index_const(index: usize) -> Self {
         Self(index as u8)
     }
 
-    pub(crate) const fn to_index(&self) -> usize {
+    pub fn from_index(index: usize) -> Self {
+        Self(index as u8)
+    }
+
+    pub(crate) const fn to_index_const(&self) -> usize {
         self.0 as usize
     }
 
-    pub const A1: Square = Square(0);
+    pub fn to_index(&self) -> usize {
+        self.0 as usize
+    }
+
+    /*pub const A1: Square = Square(0);
     pub const B1: Square = Square(1);
     pub const C1: Square = Square(2);
     pub const D1: Square = Square(3);
@@ -184,7 +199,7 @@ impl Square {
     pub const E8: Square = Square(60);
     pub const F8: Square = Square(61);
     pub const G8: Square = Square(62);
-    pub const H8: Square = Square(63);
+    pub const H8: Square = Square(63);*/
 }
 
 impl ops::Add<Direction> for Square {

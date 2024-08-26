@@ -1,56 +1,22 @@
+use wasm_bindgen::prelude::wasm_bindgen;
+
 use crate::{
     bitboard::Bitboard,
     castling_rights::CastlingRights,
     color::Color,
-    moves::{Move, MoveKind},
+    moves::{generate_moves, Move, MoveKind},
     piece::{Piece, PieceKind},
     square::{File, Rank, Square},
 };
 
+#[wasm_bindgen]
 #[derive(Clone)]
 pub struct Board {
     bb: [Bitboard; 4],
     state: u32,
 }
 
-impl Default for Board {
-    /// Creates a chessboard with standard starting position.
-    fn default() -> Self {
-        let mut board = Board::new();
-
-        for i in 0..8 {
-            board.put(Piece::WhitePawn, Square::from_index(i + 8));
-            board.put(Piece::BlackPawn, Square::from_index(i + 48));
-        }
-
-        board.put(Piece::WhiteRook, Square::A1);
-        board.put(Piece::WhiteKnight, Square::B1);
-        board.put(Piece::WhiteBishop, Square::C1);
-        board.put(Piece::WhiteQueen, Square::D1);
-        board.put(Piece::WhiteKing, Square::E1);
-        board.put(Piece::WhiteBishop, Square::F1);
-        board.put(Piece::WhiteKnight, Square::G1);
-        board.put(Piece::WhiteRook, Square::H1);
-
-        board.put(Piece::BlackRook, Square::A8);
-        board.put(Piece::BlackKnight, Square::B8);
-        board.put(Piece::BlackBishop, Square::C8);
-        board.put(Piece::BlackQueen, Square::D8);
-        board.put(Piece::BlackKing, Square::E8);
-        board.put(Piece::BlackBishop, Square::F8);
-        board.put(Piece::BlackKnight, Square::G8);
-        board.put(Piece::BlackRook, Square::H8);
-
-        // Full castling rights
-        board.add_castling_rights(CastlingRights::Kingside(Color::White));
-        board.add_castling_rights(CastlingRights::Queenside(Color::White));
-        board.add_castling_rights(CastlingRights::Kingside(Color::Black));
-        board.add_castling_rights(CastlingRights::Queenside(Color::Black));
-
-        board
-    }
-}
-
+#[wasm_bindgen]
 impl Board {
     /// Creates an empty chessboard.
     pub fn new() -> Self {
@@ -63,6 +29,42 @@ impl Board {
         board.set_en_passant_square(None);
         board.set_halfmove_clock(0);
         board.set_fullmove_number(1);
+
+        board
+    }
+
+    /// Creates a new chessboard with the standard starting position.
+    pub fn default() -> Self {
+        let mut board = Board::new();
+
+        for i in 0..8 {
+            board.put(Piece::WhitePawn, Square::from_index(i + 8));
+            board.put(Piece::BlackPawn, Square::from_index(i + 48));
+        }
+
+        board.put(Piece::WhiteRook, Square::new(Rank::First, File::A));
+        board.put(Piece::WhiteKnight, Square::new(Rank::First, File::B));
+        board.put(Piece::WhiteBishop, Square::new(Rank::First, File::C));
+        board.put(Piece::WhiteQueen, Square::new(Rank::First, File::D));
+        board.put(Piece::WhiteKing, Square::new(Rank::First, File::E));
+        board.put(Piece::WhiteBishop, Square::new(Rank::First, File::F));
+        board.put(Piece::WhiteKnight, Square::new(Rank::First, File::G));
+        board.put(Piece::WhiteRook, Square::new(Rank::First, File::H));
+
+        board.put(Piece::BlackRook, Square::new(Rank::Eighth, File::A));
+        board.put(Piece::BlackKnight, Square::new(Rank::Eighth, File::B));
+        board.put(Piece::BlackBishop, Square::new(Rank::Eighth, File::C));
+        board.put(Piece::BlackQueen, Square::new(Rank::Eighth, File::D));
+        board.put(Piece::BlackKing, Square::new(Rank::Eighth, File::E));
+        board.put(Piece::BlackBishop, Square::new(Rank::Eighth, File::F));
+        board.put(Piece::BlackKnight, Square::new(Rank::Eighth, File::G));
+        board.put(Piece::BlackRook, Square::new(Rank::Eighth, File::H));
+
+        // Full castling rights
+        board.add_castling_rights(CastlingRights::Kingside(Color::White));
+        board.add_castling_rights(CastlingRights::Queenside(Color::White));
+        board.add_castling_rights(CastlingRights::Kingside(Color::Black));
+        board.add_castling_rights(CastlingRights::Queenside(Color::Black));
 
         board
     }
@@ -83,7 +85,7 @@ impl Board {
 
         // TODO: proper error handling for invalid FEN strings.
         // pieces
-        let mut square = Square::A8.to_index() as isize;
+        let mut square = Square::new(Rank::Eighth, File::A).to_index() as isize;
         for c in fen.next().unwrap().chars() {
             match c {
                 '1'..='8' => square += (c as u8 - '1' as u8) as isize,
@@ -160,7 +162,7 @@ impl Board {
             let mut empty_squares = 0;
             for f in 0..8 {
                 let square = Square::from_index(r * 8 + f);
-                match self.at(square) {
+                match self.at(&square) {
                     Some(piece) => {
                         if empty_squares > 0 {
                             result.push(('0' as u8 + empty_squares) as char);
@@ -247,7 +249,7 @@ impl Board {
     /// assert_eq!(Board::default().at(Square::B7), Some(Piece::BlackPawn));
     /// ```
     #[inline(always)]
-    pub fn at(&self, square: Square) -> Option<Piece> {
+    pub fn at(&self, square: &Square) -> Option<Piece> {
         // https://www.chessprogramming.org/Quad-Bitboards
         let code = ((self.bb[0].to_u64() >> square.to_index()) & 1)
             + 2 * ((self.bb[1].to_u64() >> square.to_index()) & 1)
@@ -341,9 +343,17 @@ impl Board {
     /// assert!(board.has_castling_rights(CastlingRights::Queenside(Color::Black)));
     /// ```
     #[inline(always)]
-    pub fn has_castling_rights(&self, cr: CastlingRights) -> bool {
+    pub(crate) fn has_castling_rights(&self, cr: CastlingRights) -> bool {
         let bits = (self.state as u8 >> 1) & 15;
         bits & cr.bitmask() != 0
+    }
+
+    pub fn can_castle_kingside(&self, color: Color) -> bool {
+        self.has_castling_rights(CastlingRights::Kingside(color))
+    }
+
+    pub fn can_castle_queenside(&self, color: Color) -> bool {
+        self.has_castling_rights(CastlingRights::Queenside(color))
     }
 
     fn no_castlings(&self) -> bool {
@@ -368,12 +378,12 @@ impl Board {
     }
 
     #[inline(always)]
-    pub fn pieces(&self) -> Bitboard {
+    pub(crate) fn pieces(&self) -> Bitboard {
         self.bb[1] | self.bb[2] | self.bb[3]
     }
 
     #[inline(always)]
-    pub fn pieces_by_color(&self, color: Color) -> Bitboard {
+    pub(crate) fn pieces_by_color(&self, color: Color) -> Bitboard {
         match color {
             Color::Black => self.bb[0],
             Color::White => self.bb[0] ^ self.pieces(),
@@ -386,7 +396,7 @@ impl Board {
     }
 
     #[inline(always)]
-    pub fn pieces_by_kind(&self, kind: PieceKind) -> Bitboard {
+    pub(crate) fn pieces_by_kind(&self, kind: PieceKind) -> Bitboard {
         match kind {
             PieceKind::Pawn => self.bb[1] & self.odd_pieces(),
             PieceKind::Knight => self.bb[2] & self.odd_pieces(),
@@ -424,13 +434,21 @@ impl Board {
     }
 
     #[inline(always)]
-    pub fn add_castling_rights(&mut self, cr: CastlingRights) {
+    pub(crate) fn add_castling_rights(&mut self, cr: CastlingRights) {
         self.state |= (cr.bitmask() as u32) << 1;
     }
 
-    #[inline(always)]
-    pub fn remove_castling_rights(&mut self, cr: CastlingRights) {
-        self.state &= !((cr.bitmask() as u32) << 1);
+    // #[inline(always)]
+    // pub(crate) fn remove_castling_rights(&mut self, cr: CastlingRights) {
+    //     self.state &= !((cr.bitmask() as u32) << 1);
+    // }
+
+    pub fn add_castling_kingside(&mut self, color: Color) {
+        self.add_castling_rights(CastlingRights::Kingside(color));
+    }
+
+    pub fn add_castling_queenside(&mut self, color: Color) {
+        self.add_castling_rights(CastlingRights::Queenside(color));
     }
 
     #[inline(always)]
@@ -451,7 +469,7 @@ impl Board {
         let to = mv.to();
 
         board.set_en_passant_square(None);
-        let halfmove = match board.at(from) {
+        let halfmove = match board.at(&from) {
             Some(piece) if piece.kind() == PieceKind::Pawn => 0,
             _ => board.halfmove_clock() + 1,
         };
@@ -492,15 +510,46 @@ impl Board {
                 board.move_piece(from, to);
                 board.move_piece(rook_from, rook_to);
             }
-            MoveKind::Prom(piece) => {
+            MoveKind::PromQueen => {
                 board.take_piece(from);
-                board.put(Piece::new(piece, board.color_to_move()), to);
+                board.put(Piece::new(PieceKind::Queen, board.color_to_move()), to);
             }
-            MoveKind::PromCap(piece) => {
+            MoveKind::PromRook => {
+                board.take_piece(from);
+                board.put(Piece::new(PieceKind::Rook, board.color_to_move()), to);
+            }
+            MoveKind::PromBishop => {
+                board.take_piece(from);
+                board.put(Piece::new(PieceKind::Bishop, board.color_to_move()), to);
+            }
+            MoveKind::PromKnight => {
+                board.take_piece(from);
+                board.put(Piece::new(PieceKind::Knight, board.color_to_move()), to);
+            }
+
+            MoveKind::PromCapQueen => {
                 board.take_piece(to);
 
                 board.take_piece(from);
-                board.put(Piece::new(piece, board.color_to_move()), to);
+                board.put(Piece::new(PieceKind::Queen, board.color_to_move()), to);
+            }
+            MoveKind::PromCapRook => {
+                board.take_piece(to);
+
+                board.take_piece(from);
+                board.put(Piece::new(PieceKind::Rook, board.color_to_move()), to);
+            }
+            MoveKind::PromCapBishop => {
+                board.take_piece(to);
+
+                board.take_piece(from);
+                board.put(Piece::new(PieceKind::Bishop, board.color_to_move()), to);
+            }
+            MoveKind::PromCapKnight => {
+                board.take_piece(to);
+
+                board.take_piece(from);
+                board.put(Piece::new(PieceKind::Knight, board.color_to_move()), to);
             }
         }
 
@@ -523,13 +572,13 @@ impl Board {
     }
 
     fn cr_affected(square: Square) -> u8 {
-        match square {
-            Square::A1 => 2,
-            Square::E1 => 3,
-            Square::H1 => 1,
-            Square::A8 => 8,
-            Square::E8 => 12,
-            Square::H8 => 4,
+        match square.to_index() {
+            0 => 2,
+            4 => 3,
+            7 => 1,
+            56 => 8,
+            60 => 12,
+            63 => 4,
             _ => 0,
         }
     }
@@ -571,9 +620,8 @@ impl Board {
     }
 
     /// Removes and returns the piece on `square`.
-    #[inline(always)]
     fn take_piece(&mut self, square: Square) -> Option<Piece> {
-        let piece = self.at(square).unwrap();
+        let piece = self.at(&square).unwrap();
 
         let bb = Bitboard::new(square);
         match piece.color() {
@@ -603,9 +651,8 @@ impl Board {
     }
 
     /// Moves the piece on `from` to `to`. Destination square is assumed to be empty!
-    #[inline(always)]
     fn move_piece(&mut self, from: Square, to: Square) {
-        let piece = self.at(from).unwrap();
+        let piece = self.at(&from).unwrap();
 
         let bb = Bitboard::new(from) | to;
         match piece.color() {
@@ -631,6 +678,10 @@ impl Board {
             }
         }
     }
+
+    pub fn legal_moves(&self) -> Vec<Move> {
+        generate_moves(self).into_iter().collect()
+    }
 }
 
 #[cfg(test)]
@@ -640,18 +691,30 @@ mod tests {
     #[test]
     fn board_take_piece() {
         let mut board = Board::default();
-        assert_eq!(board.at(Square::A2), Some(Piece::WhitePawn));
-        let p = board.take_piece(Square::A2);
-        assert_eq!(board.at(Square::A2), None);
+        assert_eq!(
+            board.at(&Square::new(Rank::Second, File::A)),
+            Some(Piece::WhitePawn)
+        );
+        let p = board.take_piece(Square::new(Rank::Second, File::A));
+        assert_eq!(board.at(&Square::new(Rank::Second, File::A)), None);
         assert_eq!(p, Some(Piece::WhitePawn));
     }
 
     #[test]
     fn board_move_piece() {
         let mut board = Board::default();
-        assert_eq!(board.at(Square::B7), Some(Piece::BlackPawn));
-        board.move_piece(Square::B7, Square::B6);
-        assert_eq!(board.at(Square::B7), None);
-        assert_eq!(board.at(Square::B6), Some(Piece::BlackPawn));
+        assert_eq!(
+            board.at(&Square::new(Rank::Seventh, File::B)),
+            Some(Piece::BlackPawn)
+        );
+        board.move_piece(
+            Square::new(Rank::Seventh, File::B),
+            Square::new(Rank::Sixth, File::B),
+        );
+        assert_eq!(board.at(&Square::new(Rank::Seventh, File::B)), None);
+        assert_eq!(
+            board.at(&Square::new(Rank::Sixth, File::B)),
+            Some(Piece::BlackPawn)
+        );
     }
 }

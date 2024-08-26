@@ -38,7 +38,12 @@ pub struct Bitboard(u64);
 impl Bitboard {
     #[inline(always)]
     pub const fn new(square: Square) -> Self {
-        Self(1 << square.to_index())
+        Self(1 << square.to_index_const())
+    }
+
+    #[inline(always)]
+    pub(crate) fn from_u64(value: u64) -> Self {
+        Self(value)
     }
 
     #[inline(always)]
@@ -67,7 +72,7 @@ impl Bitboard {
             None
         } else {
             let index = self.0.trailing_zeros();
-            Some(Square::from_index(index as usize))
+            Some(Square::from_index_const(index as usize))
         }
     }
 
@@ -326,7 +331,7 @@ impl Iterator for BitboardIntoIterator {
         } else {
             let index = self.0.trailing_zeros() as usize;
 
-            let square: Square = Square::from_index(index);
+            let square: Square = Square::from_index_const(index);
             self.0 &= self.0.wrapping_sub(1);
             Some(square)
         }
@@ -343,7 +348,7 @@ const fn init_king_attack_lookup() -> [Bitboard; 64] {
 
     let mut i = 0;
     while i < 64 {
-        let from = Square::from_index(i);
+        let from = Square::from_index_const(i);
 
         let bb = Bitboard::new(from);
 
@@ -369,7 +374,7 @@ const fn init_knight_attack_lookup() -> [Bitboard; 64] {
 
     let mut i = 0;
     while i < 64 {
-        let from = Square::from_index(i);
+        let from = Square::from_index_const(i);
 
         let bb = Bitboard::new(from);
 
@@ -401,7 +406,7 @@ const fn init_bishop_mask_lookup() -> [Bitboard; 64] {
         let mut b: u64 = 0;
         while i < 4 {
             let d = DIRECTIONS[i];
-            let r = Bitboard::ray(Square::from_index(square), d, Bitboard::EMPTY);
+            let r = Bitboard::ray(Square::from_index_const(square), d, Bitboard::EMPTY);
             b |= r.0;
 
             i += 1;
@@ -432,12 +437,12 @@ const fn init_between_lookup() -> [Bitboard; 64 * 64] {
     while square1 < 64 {
         let mut square2 = 0;
         while square2 < 64 {
-            let bb2 = Bitboard::new(Square::from_index(square2));
+            let bb2 = Bitboard::new(Square::from_index_const(square2));
 
             let mut i = 0;
             while i < 8 {
                 let d = DIRECTIONS[i];
-                let r = Bitboard::ray(Square::from_index(square1), d, bb2);
+                let r = Bitboard::ray(Square::from_index_const(square1), d, bb2);
 
                 if (r.0 & bb2.0) != 0 {
                     let square_index = square1 * 64 + square2;
@@ -470,14 +475,14 @@ mod tests {
     fn bitboard_iterator() {
         let mut it = Bitboard(255).into_iter();
 
-        assert_eq!(it.next(), Some(Square::A1));
-        assert_eq!(it.next(), Some(Square::B1));
-        assert_eq!(it.next(), Some(Square::C1));
-        assert_eq!(it.next(), Some(Square::D1));
-        assert_eq!(it.next(), Some(Square::E1));
-        assert_eq!(it.next(), Some(Square::F1));
-        assert_eq!(it.next(), Some(Square::G1));
-        assert_eq!(it.next(), Some(Square::H1));
+        assert_eq!(it.next(), Some(Square::new(Rank::First, File::A)));
+        assert_eq!(it.next(), Some(Square::new(Rank::First, File::B)));
+        assert_eq!(it.next(), Some(Square::new(Rank::First, File::C)));
+        assert_eq!(it.next(), Some(Square::new(Rank::First, File::D)));
+        assert_eq!(it.next(), Some(Square::new(Rank::First, File::E)));
+        assert_eq!(it.next(), Some(Square::new(Rank::First, File::F)));
+        assert_eq!(it.next(), Some(Square::new(Rank::First, File::G)));
+        assert_eq!(it.next(), Some(Square::new(Rank::First, File::H)));
         assert_eq!(it.next(), None);
     }
 }

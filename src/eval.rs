@@ -1,9 +1,4 @@
-use crate::{
-    board::Board,
-    color::Color,
-    moves::{Move, MoveKind},
-    piece::PieceKind,
-};
+use crate::{board::Board, color::Color, piece::PieceKind};
 
 pub type Score = i32;
 
@@ -19,25 +14,25 @@ const P: [(PieceKind, i32); 5] = [
     (PieceKind::Queen, 900),
 ];
 
-pub fn mvv_lva(board: &Board, mv: Move) -> Score {
-    match mv.kind() {
-        MoveKind::Cap => {
-            let aggressor = board.at(mv.from()).unwrap();
-            let victim = board.at(mv.to()).unwrap();
+// pub fn mvv_lva(board: &Board, mv: Move) -> Score {
+//     match mv.kind() {
+//         MoveKind::Cap => {
+//             let aggressor = board.at(mv.from()).unwrap();
+//             let victim = board.at(mv.to()).unwrap();
 
-            let agg_score = if aggressor.kind() == PieceKind::King {
-                0
-            } else {
-                P[aggressor.kind().to_index()].1
-            };
+//             let agg_score = if aggressor.kind() == PieceKind::King {
+//                 0
+//             } else {
+//                 P[aggressor.kind().to_index()].1
+//             };
 
-            P[victim.kind().to_index()].1 - agg_score
-        }
-        MoveKind::PromCap(_) => 900,
-        MoveKind::EnPassant => 0,
-        _ => 0,
-    }
-}
+//             P[victim.kind().to_index()].1 - agg_score
+//         }
+//         MoveKind::PromCap(_) => 900,
+//         MoveKind::EnPassant => 0,
+//         _ => 0,
+//     }
+// }
 
 pub fn evaluate(board: &Board) -> Score {
     // Count material value
