@@ -1,7 +1,5 @@
 use std::{fmt, ops};
 
-use wasm_bindgen::prelude::wasm_bindgen;
-
 use crate::{
     bitboard::{Bitboard, Direction},
     board::Board,
@@ -11,7 +9,6 @@ use crate::{
     square::{Rank, Square},
 };
 
-#[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub enum MoveKind {
     Quiet,
@@ -54,7 +51,6 @@ impl MoveKind {
     }
 }
 
-#[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub struct Move(u16);
 
@@ -65,9 +61,7 @@ pub struct Move(u16);
 //     kind: MoveKind,
 // }
 
-#[wasm_bindgen]
 impl Move {
-    #[wasm_bindgen(constructor)]
     pub fn new(from: Square, to: Square, kind: MoveKind) -> Self {
         let bits = from.to_index() | (to.to_index() << 6) | Self::movekind_to_bits(kind);
         Self(bits as u16)
@@ -124,6 +118,14 @@ impl Move {
     #[inline(always)]
     pub fn null() -> Self {
         Self(0)
+    }
+
+    pub fn to_index(&self) -> u16 {
+        self.0
+    }
+
+    pub fn from_index(i: u16) -> Self {
+        Self(i)
     }
 }
 
@@ -391,7 +393,7 @@ fn pinned_moves(board: &Board, pinned: Bitboard, allowed_squares: Bitboard, move
     let all: Bitboard = board.pieces();
 
     let square = pinned.first().unwrap();
-    match board.at(&square).unwrap().kind() {
+    match board.at(square).unwrap().kind() {
         PieceKind::Pawn => pawn_moves(board, pinned, allowed_squares, moves),
         PieceKind::Bishop => add_moves(
             board,

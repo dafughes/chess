@@ -25,6 +25,7 @@ pub fn perft(board: &Board, depth: usize) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use std::{io::BufRead, time::Instant};
 
     #[test]
@@ -84,7 +85,7 @@ impl fmt::Display for Board {
             for file in 0..8 {
                 let square = Square::from_index(rank * 8 + file);
 
-                let c = match self.at(&square) {
+                let c = match self.at(square) {
                     Some(piece) => char::from(piece),
                     None => ' ',
                 };

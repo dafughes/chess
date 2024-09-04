@@ -3,9 +3,6 @@ name = "chess"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-crate-type = ["cdylib"]
-
 [profile.test]
 opt-level = 3
 debug = true
@@ -20,5 +17,9 @@ panic = "abort"
 codegen-units = 1
 lto = true
 
-[dependencies]
-wasm-bindgen = "0.2"
+[dev-dependencies]
+criterion ={ version = "0.5", features = ["html_reports"]}
+
+[[bench]]
+name = "benchmark"
+harness = false

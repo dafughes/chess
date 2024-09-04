@@ -1,12 +1,9 @@
-use wasm_bindgen::prelude::wasm_bindgen;
-
 use crate::{
     board::Board,
     eval::{evaluate, Score, DRAW, INF, MATE},
     moves::{generate_moves, Move},
 };
 
-#[wasm_bindgen]
 #[derive(Debug)]
 pub struct SearchParams {
     pub wtime: u32,
@@ -21,9 +18,7 @@ pub struct SearchParams {
     pub infinite: bool,
 }
 
-#[wasm_bindgen]
 impl SearchParams {
-    #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self {
             wtime: 0,
@@ -148,15 +143,6 @@ pub fn quiescence_search(board: &Board, mut alpha: Score, beta: Score) -> Score 
     return alpha;
 }
 
-#[wasm_bindgen]
-extern "C" {
-    // Use `js_namespace` here to bind `console.log(..)` instead of just
-    // `log(..)`
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-}
-
-#[wasm_bindgen]
 pub fn search(params: SearchParams, board: &Board) -> Move {
     let moves = generate_moves(board);
 
@@ -170,14 +156,12 @@ pub fn search(params: SearchParams, board: &Board) -> Move {
     for mv in &moves {
         let score = -negamax_alphabeta(&board.do_move(mv), -INF, INF, 1, params.depth as usize - 1);
 
-        log(&format!("{}: {}", mv, score));
         // println!("{}: {}", mv, score);
         if score > max {
             max = score;
             bestmove = mv;
         }
     }
-    log("");
 
     bestmove
 }

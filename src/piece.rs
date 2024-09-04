@@ -1,8 +1,5 @@
-use wasm_bindgen::prelude::wasm_bindgen;
-
 use crate::color::Color;
 
-#[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PieceKind {
     Pawn,
@@ -13,13 +10,6 @@ pub enum PieceKind {
     King,
 }
 
-// impl PieceKind {
-//     pub(crate) fn to_index(&self) -> usize {
-//         *self as usize
-//     }
-// }
-
-#[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Piece {
     WhitePawn,
@@ -145,18 +135,3 @@ impl TryFrom<char> for PieceKind {
         }
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn piecekind_to_index() {
-//         assert_eq!(PieceKind::Pawn.to_index(), 0);
-//         assert_eq!(PieceKind::Knight.to_index(), 1);
-//         assert_eq!(PieceKind::Bishop.to_index(), 2);
-//         assert_eq!(PieceKind::Rook.to_index(), 3);
-//         assert_eq!(PieceKind::Queen.to_index(), 4);
-//         assert_eq!(PieceKind::King.to_index(), 5);
-//     }
-// }
