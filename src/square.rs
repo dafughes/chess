@@ -1,4 +1,4 @@
-use std::ops;
+use std::{ops, str::FromStr};
 
 use crate::bitboard::Direction;
 
@@ -14,7 +14,21 @@ pub enum Rank {
     Eighth,
 }
 
+
 impl Rank {
+    pub fn iter() -> impl DoubleEndedIterator<Item = Rank> {
+        [
+            Rank::First,
+            Rank::Second,
+            Rank::Third,
+            Rank::Fourth,
+            Rank::Fifth,
+            Rank::Sixth,
+            Rank::Seventh,
+            Rank::Eighth,
+        ].iter().copied()
+    }
+
     pub(crate) fn from_index(index: usize) -> Self {
         match index {
             0 => Rank::First,
@@ -46,7 +60,22 @@ pub enum File {
     H,
 }
 
+
+
 impl File {
+    pub fn iter() -> impl Iterator<Item = File> {
+        [
+            File::A,
+            File::B,
+            File::C,
+            File::D,
+            File::E,
+            File::F,
+            File::G,
+            File::H,
+        ].iter().copied()
+    }
+
     pub(crate) fn from_index(index: usize) -> Self {
         match index {
             0 => File::A,
@@ -218,12 +247,12 @@ impl From<Rank> for char {
 }
 
 impl TryFrom<char> for Rank {
-    type Error = String;
+    type Error = ();
 
     fn try_from(value: char) -> Result<Self, Self::Error> {
         match value {
             '1'..='8' => Ok(Rank::from_index((value as u8 - '1' as u8) as usize)),
-            _ => Err(format!("Invalid rank '{}'", value)),
+            _ => Err(()),
         }
     }
 }
@@ -235,13 +264,24 @@ impl From<File> for char {
 }
 
 impl TryFrom<char> for File {
-    type Error = String;
+    type Error = ();
 
     fn try_from(value: char) -> Result<Self, Self::Error> {
         match value {
             'a'..='h' => Ok(File::from_index((value as u8 - 'a' as u8) as usize)),
-            _ => Err(format!("Invalid file '{}'", value)),
+            _ => Err(()),
         }
+    }
+}
+
+impl FromStr for Square {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let f = s.chars().nth(0).ok_or(())?;
+        let r = s.chars().nth(1).ok_or(())?;
+
+        Ok(Square::new(r.try_into()?, f.try_into()?))
     }
 }
 

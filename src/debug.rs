@@ -42,7 +42,7 @@ mod tests {
 
             let mut tokens = line.split(',');
             let fen = tokens.next().unwrap();
-            let mut board = Board::from_fen(fen);
+            let mut board = Board::from_fen(fen).unwrap();
 
             print!("FEN: {: <80}|", fen);
 

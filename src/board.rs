@@ -11,7 +11,15 @@ use crate::{
 
 #[derive(Debug)]
 pub struct ParseFenError {
-    msg: String
+    msg: String,
+}
+
+impl ParseFenError {
+    pub fn new<S: AsRef<str>>(msg: S) -> Self {
+        Self {
+            msg: msg.as_ref().to_owned(),
+        }
+    }
 }
 
 impl fmt::Display for ParseFenError {
@@ -82,67 +90,110 @@ impl Board {
     /// # Example
     /// ```
     /// # use chess::{board::Board};
-    /// let board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+    /// let board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1").unwrap();
     /// assert_eq!(board.fen(), "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-    /// let board = Board::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
+    /// let board = Board::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
     /// assert_eq!(board.fen(), "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
     /// ```
-    pub fn from_fen(fen: &str) -> Board {
+    pub fn from_fen(fen: &str) -> Result<Board, ParseFenError> {
         let mut board = Board::new();
 
         let mut fen = fen.split_whitespace();
 
-        // pieces
-        let mut square = Square::new(Rank::Eighth, File::A).to_index() as isize;
-        for c in fen.next().unwrap().chars() {
+        fn parse_piece(c: char) -> Option<Piece> {
             match c {
-                '1'..='8' => square += (c as u8 - '1' as u8) as isize,
-                'P' => board.put(Piece::WhitePawn, Square::from_index(square as usize)),
-                'N' => board.put(Piece::WhiteKnight, Square::from_index(square as usize)),
-                'B' => board.put(Piece::WhiteBishop, Square::from_index(square as usize)),
-                'R' => board.put(Piece::WhiteRook, Square::from_index(square as usize)),
-                'Q' => board.put(Piece::WhiteQueen, Square::from_index(square as usize)),
-                'K' => board.put(Piece::WhiteKing, Square::from_index(square as usize)),
-                'p' => board.put(Piece::BlackPawn, Square::from_index(square as usize)),
-                'n' => board.put(Piece::BlackKnight, Square::from_index(square as usize)),
-                'b' => board.put(Piece::BlackBishop, Square::from_index(square as usize)),
-                'r' => board.put(Piece::BlackRook, Square::from_index(square as usize)),
-                'q' => board.put(Piece::BlackQueen, Square::from_index(square as usize)),
-                'k' => board.put(Piece::BlackKing, Square::from_index(square as usize)),
-                '/' => square -= 17,
-                _ => (),
+                'P' => Some(Piece::WhitePawn),
+                'N' => Some(Piece::WhiteKnight),
+                'B' => Some(Piece::WhiteBishop),
+                'R' => Some(Piece::WhiteRook),
+                'Q' => Some(Piece::WhiteQueen),
+                'K' => Some(Piece::WhiteKing),
+                'p' => Some(Piece::BlackPawn),
+                'n' => Some(Piece::BlackKnight),
+                'b' => Some(Piece::BlackBishop),
+                'r' => Some(Piece::BlackRook),
+                'q' => Some(Piece::BlackQueen),
+                'k' => Some(Piece::BlackKing),
+                _ => None,
             }
+        }
 
-            square += 1;
+        // pieces
+        let pieces = fen
+            .next()
+            .ok_or(ParseFenError::new("No pieces specified"))?;
+        let mut rank = Rank::iter().rev().peekable();
+        let mut file = File::iter().peekable();
+
+        for c in pieces.chars() {
+            match c {
+                '1'..='8' => {
+                    let n = c as u8 - '0' as u8;
+                    for _ in 0..n {
+                        file.next();
+                    }
+                }
+                '/' => {
+                    rank.next();
+                    file = File::iter().peekable();
+                }
+                c => match parse_piece(c) {
+                    Some(piece) => {
+                        let &r = rank
+                            .peek()
+                            .ok_or(ParseFenError::new("Invalid rank in pieces"))?;
+                        let &f = file
+                            .peek()
+                            .ok_or(ParseFenError::new("Invalid file in pieces"))?;
+                        let square = Square::new(r, f);
+                        board.put(piece, square);
+                        file.next();
+                    }
+                    None => {
+                        return Err(ParseFenError::new(format!("Unexpected character '{}'", c)))
+                    }
+                },
+            }
         }
 
         // color
-        let color = match fen.next().unwrap() {
+        let color = fen.next().ok_or(ParseFenError::new("No color specified"))?;
+        let color = match color {
             "w" => Color::White,
             "b" => Color::Black,
-            _ => Color::White,
+            _ => return Err(ParseFenError::new(format!("Unexpected color '{}'", color))),
         };
         board.set_color_to_move(color);
 
         // castling rights
-        for c in fen.next().unwrap().chars() {
+        for c in fen
+            .next()
+            .ok_or(ParseFenError::new("No castling rights specified"))?
+            .chars()
+        {
             match c {
                 'K' => board.add_castling_rights(CastlingRights::Kingside(Color::White)),
                 'Q' => board.add_castling_rights(CastlingRights::Queenside(Color::White)),
                 'k' => board.add_castling_rights(CastlingRights::Kingside(Color::Black)),
                 'q' => board.add_castling_rights(CastlingRights::Queenside(Color::Black)),
-                _ => (),
+                '-' => (),
+                _ => return Err(ParseFenError::new(format!("Unexpected character '{}'", c))),
             }
         }
 
         // en passant square
-        let section = fen.next().unwrap();
+        let ep = fen
+            .next()
+            .ok_or(ParseFenError::new("No en passant square specified"))?;
 
-        if section != "-" {
-            let f = File::from_index((section.chars().nth(0).unwrap() as u8 - 'a' as u8) as usize);
-            let r = Rank::from_index((section.chars().nth(1).unwrap() as u8 - '1' as u8) as usize);
-            board.set_en_passant_square(Some(Square::new(r, f)));
-        }
+        board.set_en_passant_square(if ep == "-" {
+            None
+        } else {
+            Some(
+                ep.parse()
+                    .map_err(|_| ParseFenError::new("Invalid en passant square"))?,
+            )
+        });
 
         if let Some(s) = fen.next() {
             board.set_halfmove_clock(s.parse::<usize>().unwrap());
@@ -152,7 +203,7 @@ impl Board {
             board.set_fullmove_number(s.parse::<usize>().unwrap());
         }
 
-        board
+        Ok(board)
     }
 
     /// Returns the position in FEN.
@@ -166,10 +217,11 @@ impl Board {
         let mut result = String::new();
 
         // pieces
-        for r in (0..8).rev() {
+        for rank in Rank::iter().rev() {
             let mut empty_squares = 0;
-            for f in 0..8 {
-                let square = Square::from_index(r * 8 + f);
+            for file in File::iter() {
+                let square = Square::new(rank, file);
+
                 match self.at(square) {
                     Some(piece) => {
                         if empty_squares > 0 {
@@ -195,11 +247,10 @@ impl Board {
                     None => empty_squares += 1,
                 }
             }
-
             if empty_squares > 0 {
                 result.push(('0' as u8 + empty_squares) as char);
             }
-            if r > 0 {
+            if rank != Rank::First {
                 result.push('/');
             }
         }
