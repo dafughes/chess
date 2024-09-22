@@ -1,4 +1,4 @@
-use std::{fmt, ops};
+use std::{fmt, ops, str::FromStr};
 
 use crate::{
     bitboard::{Bitboard, Direction},
@@ -6,7 +6,7 @@ use crate::{
     castling_rights::CastlingRights,
     color::Color,
     piece::PieceKind,
-    square::{Rank, Square},
+    square::{File, Rank, Square},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -343,17 +343,21 @@ fn calculate_attacks(board: &Board, attacker: Color) -> (Bitboard, Bitboard, Bit
     let pieces = board.pieces_by_kind(PieceKind::Knight) & attacking_pieces;
     for from in pieces {
         let att = Bitboard::knight_attacks(from);
+
         if (att & defender_king_bb).is_non_empty() {
             checking_pieces |= from;
         }
+
         attacks |= att;
     }
 
     // bishop/queens
     let pieces = (board.pieces_by_kind(PieceKind::Bishop) | board.pieces_by_kind(PieceKind::Queen))
         & attacking_pieces;
+
     for from in pieces {
         let att = Bitboard::bishop_attacks(from, all);
+
         if (att & defender_king_bb).is_non_empty() {
             checking_pieces |= from;
         }
@@ -368,6 +372,7 @@ fn calculate_attacks(board: &Board, attacker: Color) -> (Bitboard, Bitboard, Bit
         & attacking_pieces;
     for from in pieces {
         let att = Bitboard::rook_attacks(from, all);
+
         if (att & defender_king_bb).is_non_empty() {
             checking_pieces |= from;
         }
@@ -388,31 +393,18 @@ fn calculate_attacks(board: &Board, attacker: Color) -> (Bitboard, Bitboard, Bit
     (attacks, attacks_through_king, checking_pieces)
 }
 
-#[inline(always)]
-fn pinned_moves(board: &Board, pinned: Bitboard, allowed_squares: Bitboard, moves: &mut Movelist) {
-    let all: Bitboard = board.pieces();
+fn pinned_moves(b: &Board, p: Bitboard, a: Bitboard, moves: &mut Movelist) {
+    let all: Bitboard = b.pieces();
 
-    let square = pinned.first().unwrap();
-    match board.at(square).unwrap().kind() {
-        PieceKind::Pawn => pawn_moves(board, pinned, allowed_squares, moves),
-        PieceKind::Bishop => add_moves(
-            board,
-            pinned,
-            allowed_squares,
-            |from| Bitboard::bishop_attacks(from, all),
-            moves,
-        ),
-        PieceKind::Rook => add_moves(
-            board,
-            pinned,
-            allowed_squares,
-            |from| Bitboard::rook_attacks(from, all),
-            moves,
-        ),
+    let square = p.first().unwrap();
+    match b.at(square).unwrap().kind() {
+        PieceKind::Pawn => pawn_moves(b, p, a, moves),
+        PieceKind::Bishop => add_moves(b, p, a, |from| Bitboard::bishop_attacks(from, all), moves),
+        PieceKind::Rook => add_moves(b, p, a, |from| Bitboard::rook_attacks(from, all), moves),
         PieceKind::Queen => add_moves(
-            board,
-            pinned,
-            allowed_squares,
+            b,
+            p,
+            a,
             |from| Bitboard::bishop_attacks(from, all) | Bitboard::rook_attacks(from, all),
             moves,
         ),

@@ -1,4 +1,5 @@
 use core::fmt;
+use std::str::FromStr;
 
 use crate::{
     bitboard::Bitboard,

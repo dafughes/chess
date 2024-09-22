@@ -2,38 +2,8 @@ use crate::{
     board::Board,
     eval::{evaluate, Score, DRAW, INF, MATE},
     moves::{generate_moves, Move},
+    uci::SearchParams,
 };
-
-#[derive(Debug)]
-pub struct SearchParams {
-    pub wtime: u32,
-    pub btime: u32,
-    pub winc: u32,
-    pub binc: u32,
-    pub movestogo: u32,
-    pub depth: u32,
-    pub nodes: u32,
-    pub mate: u32,
-    pub movetime: u32,
-    pub infinite: bool,
-}
-
-impl SearchParams {
-    pub fn new() -> Self {
-        Self {
-            wtime: 0,
-            btime: 0,
-            winc: 0,
-            binc: 0,
-            movestogo: 0,
-            depth: 0,
-            nodes: 0,
-            mate: 0,
-            movetime: 0,
-            infinite: false,
-        }
-    }
-}
 
 pub fn negamax(board: &Board, depth: usize, depth_left: usize) -> Score {
     let moves = generate_moves(board);
@@ -141,27 +111,4 @@ pub fn quiescence_search(board: &Board, mut alpha: Score, beta: Score) -> Score 
     }
 
     return alpha;
-}
-
-pub fn search(params: SearchParams, board: &Board) -> Move {
-    let moves = generate_moves(board);
-
-    if params.depth == 0 {
-        return Move::null();
-    }
-
-    let mut max = -INF;
-    let mut bestmove = Move::null();
-
-    for mv in &moves {
-        let score = -negamax_alphabeta(&board.do_move(mv), -INF, INF, 1, params.depth as usize - 1);
-
-        // println!("{}: {}", mv, score);
-        if score > max {
-            max = score;
-            bestmove = mv;
-        }
-    }
-
-    bestmove
 }

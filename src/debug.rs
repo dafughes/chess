@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::{bitboard::Bitboard, board::Board, moves::generate_moves, square::Square};
 
+/// Counts the number of possible leaf nodes in a game tree of `depth`.
 pub fn perft(board: &Board, depth: usize) -> u64 {
     if depth == 0 {
         return 1;
@@ -9,6 +10,7 @@ pub fn perft(board: &Board, depth: usize) -> u64 {
 
     let moves = generate_moves(board);
 
+    // Bulk counting
     if depth == 1 {
         return moves.count() as u64;
     }
@@ -20,6 +22,23 @@ pub fn perft(board: &Board, depth: usize) -> u64 {
     }
 
     count
+}
+
+/// Similar to `perft()`, but also shows the node counts for all current moves.
+pub fn perft_divide(board: &Board, depth: usize) -> u64 {
+    if depth == 0 {
+        return 1;
+    }
+
+    let mut total_nodes = 0;
+
+    for mv in &generate_moves(board) {
+        let nodes = perft(&board.do_move(mv), depth - 1);
+        println!("{}: {}", mv, nodes);
+        total_nodes += nodes;
+    }
+
+    total_nodes
 }
 
 #[cfg(test)]
