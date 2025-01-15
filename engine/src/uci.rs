@@ -1,5 +1,4 @@
 use chess::board::{
-    self,
     moves::{Move, MoveKind},
     piece::PieceKind,
     square::Square,
@@ -26,7 +25,20 @@ pub enum Command {
 }
 
 #[derive(Debug)]
-pub struct SearchParams {}
+pub struct SearchParams {
+    pub searchmoves: Vec<String>,
+    pub ponder: bool,
+    pub wtime: Option<usize>,
+    pub btime: Option<usize>,
+    pub winc: Option<usize>,
+    pub binc: Option<usize>,
+    pub movestogo: Option<usize>,
+    pub depth: Option<usize>,
+    pub nodes: Option<usize>,
+    pub mate: Option<usize>,
+    pub movetime: Option<usize>,
+    pub infinite: bool,
+}
 
 #[derive(Debug)]
 pub enum ParseCommandError {
@@ -77,7 +89,49 @@ impl std::str::FromStr for Command {
                 Ok(Command::Position(fen, moves))
             }
             "go" => {
-                todo!()
+                let mut params = SearchParams {
+                    searchmoves: vec![],
+                    ponder: false,
+                    wtime: None,
+                    btime: None,
+                    winc: None,
+                    binc: None,
+                    movestogo: None,
+                    depth: None,
+                    nodes: None,
+                    mate: None,
+                    movetime: None,
+                    infinite: false,
+                };
+
+                macro_rules! parse_usize {
+                    ($t: ident) => {
+                        Some(
+                            $t.next()
+                                .ok_or(ParseCommandError::Invalid)?
+                                .parse::<usize>()
+                                .map_err(|_| ParseCommandError::Invalid)?,
+                        )
+                    };
+                }
+
+                while let Some(token) = tokens.next() {
+                    // TODO: maybe implement all params?
+                    match token {
+                        "wtime" => params.wtime = parse_usize!(tokens),
+                        "btime" => params.btime = parse_usize!(tokens),
+                        "winc" => params.winc = parse_usize!(tokens),
+                        "binc" => params.binc = parse_usize!(tokens),
+                        "depth" => params.depth = parse_usize!(tokens),
+                        "nodes" => params.nodes = parse_usize!(tokens),
+                        "mate" => params.mate = parse_usize!(tokens),
+                        "movetime" => params.movetime = parse_usize!(tokens),
+                        "infinite" => params.infinite = true,
+                        _ => return Err(ParseCommandError::Invalid),
+                    }
+                }
+
+                Ok(Command::Go(params))
             }
             "stop" => Ok(Command::Stop),
             "quit" => Ok(Command::Quit),
