@@ -1,7 +1,7 @@
 use super::color::Color;
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Castling {
     Kingside(Color) = 1,
     Queenside(Color) = 2,
@@ -18,7 +18,7 @@ impl Castling {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CastlingRights(u8);
 
 impl CastlingRights {

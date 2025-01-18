@@ -1,6 +1,6 @@
 use super::color::Color;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PieceKind {
     Pawn,
     Knight,
@@ -8,6 +8,21 @@ pub enum PieceKind {
     Rook,
     Queen,
     King,
+}
+
+impl PieceKind {
+    pub fn iter() -> impl Iterator<Item = PieceKind> {
+        [
+            PieceKind::Pawn,
+            PieceKind::Knight,
+            PieceKind::Bishop,
+            PieceKind::Rook,
+            PieceKind::Queen,
+            PieceKind::King,
+        ]
+        .iter()
+        .copied()
+    }
 }
 
 impl From<PieceKind> for char {

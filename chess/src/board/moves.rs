@@ -8,7 +8,7 @@ use super::{
     Board,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MoveKind {
     Quiet,
     Capture,
@@ -20,7 +20,7 @@ pub enum MoveKind {
     PromotionCapture(PieceKind),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Move {
     from: Square,
     to: Square,
@@ -57,11 +57,15 @@ impl Move {
 
 impl std::fmt::Display for Move {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.kind() {
-            MoveKind::Promotion(kind) | MoveKind::PromotionCapture(kind) => {
-                write!(f, "{}{}{}", self.from(), self.to(), char::from(kind))
+        if self.from() == Square::A1 && self.to() == Square::A1 {
+            write!(f, "0000")
+        } else {
+            match self.kind() {
+                MoveKind::Promotion(kind) | MoveKind::PromotionCapture(kind) => {
+                    write!(f, "{}{}{}", self.from(), self.to(), char::from(kind))
+                }
+                _ => write!(f, "{}{}", self.from(), self.to()),
             }
-            _ => write!(f, "{}{}", self.from(), self.to()),
         }
     }
 }
@@ -81,6 +85,10 @@ impl Movelist {
 
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     pub(crate) fn push(&mut self, mv: Move) {

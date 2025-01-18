@@ -24,6 +24,17 @@ pub struct Board {
     halfmove: u8,
 }
 
+impl PartialEq for Board {
+    fn eq(&self, other: &Self) -> bool {
+        self.squares == other.squares
+            && self.color == other.color
+            && self.cr == other.cr
+            && self.ep == other.ep
+    }
+}
+
+impl Eq for Board {}
+
 impl Board {
     pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     /// Creates an empty chessboard.
@@ -75,15 +86,15 @@ impl Board {
         self.colors_bb[piece.color() as usize] |= bb;
     }
 
-    fn pieces_by_kind(&self, kind: PieceKind) -> Bitboard {
+    pub fn pieces_by_kind(&self, kind: PieceKind) -> Bitboard {
         self.pieces_bb[kind as usize]
     }
 
-    fn pieces_by_color(&self, color: Color) -> Bitboard {
+    pub fn pieces_by_color(&self, color: Color) -> Bitboard {
         self.colors_bb[color as usize]
     }
 
-    fn pieces(&self) -> Bitboard {
+    pub fn pieces(&self) -> Bitboard {
         self.colors_bb[0] | self.colors_bb[1]
     }
 
@@ -214,45 +225,22 @@ impl Board {
     }
 
     fn is_square_attacked(&self, attacker: Color, square: Square) -> bool {
-        let pieces = (self.pieces_by_kind(PieceKind::Queen) | self.pieces_by_kind(PieceKind::Rook))
-            & self.pieces_by_color(attacker);
-        let attacks = Bitboard::rook_attacks(square, self.pieces());
+        let attacker_bb = self.pieces_by_color(attacker);
 
-        if (attacks & pieces).is_non_empty() {
-            return true;
-        }
+        let pawns = self.pieces_by_kind(PieceKind::Pawn) & attacker_bb;
+        let knights = self.pieces_by_kind(PieceKind::Knight) & attacker_bb;
+        let bishops = self.pieces_by_kind(PieceKind::Bishop) & attacker_bb;
+        let rooks = self.pieces_by_kind(PieceKind::Rook) & attacker_bb;
+        let queens = self.pieces_by_kind(PieceKind::Queen) & attacker_bb;
+        let king = self.pieces_by_kind(PieceKind::King) & attacker_bb;
 
-        let pieces = (self.pieces_by_kind(PieceKind::Queen)
-            | self.pieces_by_kind(PieceKind::Bishop))
-            & self.pieces_by_color(attacker);
-        let attacks = Bitboard::bishop_attacks(square, self.pieces());
+        let a = Bitboard::rook_attacks(square, self.pieces()) & (queens | rooks);
+        let b = Bitboard::bishop_attacks(square, self.pieces()) & (queens | bishops);
+        let c = Bitboard::knight_attacks(square) & knights;
+        let d = Bitboard::king_attacks(square) & king;
+        let e = Bitboard::pawn_attacks(square, !attacker) & pawns;
 
-        if (attacks & pieces).is_non_empty() {
-            return true;
-        }
-
-        let pieces = self.pieces_by_kind(PieceKind::Knight) & self.pieces_by_color(attacker);
-        let attacks = Bitboard::knight_attacks(square);
-
-        if (attacks & pieces).is_non_empty() {
-            return true;
-        }
-
-        let pieces = self.pieces_by_kind(PieceKind::King) & self.pieces_by_color(attacker);
-        let attacks = Bitboard::king_attacks(square);
-
-        if (attacks & pieces).is_non_empty() {
-            return true;
-        }
-
-        let pieces = self.pieces_by_kind(PieceKind::Pawn) & self.pieces_by_color(attacker);
-        let attacks = Bitboard::pawn_attacks(square, !attacker);
-
-        if (attacks & pieces).is_non_empty() {
-            return true;
-        }
-
-        return false;
+        (a | b | c | d | e).is_non_empty()
     }
 
     pub fn fen(&self) -> String {
@@ -395,6 +383,7 @@ mod tests {
     use crate::board::{color::Color, square::Square};
 
     use super::{
+        moves::{Move, MoveKind},
         piece::Piece,
         square::{File, Rank},
         Board,
@@ -448,5 +437,22 @@ mod tests {
 
         assert_eq!(board.halfmove_clock(), 1);
         assert_eq!(board.fullmove_number(), 8);
+    }
+
+    #[test]
+    fn board_equality() {
+        let mut board1 = Board::default();
+        board1 = board1.do_move(Move::new(Square::A2, Square::A4, MoveKind::DoublePush));
+        board1 = board1.do_move(Move::new(Square::B8, Square::A6, MoveKind::Quiet));
+        board1 = board1.do_move(Move::new(Square::E2, Square::E3, MoveKind::Quiet));
+        board1 = board1.do_move(Move::new(Square::G8, Square::H6, MoveKind::Quiet));
+
+        let mut board2 = Board::default();
+        board2 = board2.do_move(Move::new(Square::A2, Square::A4, MoveKind::DoublePush));
+        board2 = board2.do_move(Move::new(Square::G8, Square::H6, MoveKind::Quiet));
+        board2 = board2.do_move(Move::new(Square::E2, Square::E3, MoveKind::Quiet));
+        board2 = board2.do_move(Move::new(Square::B8, Square::A6, MoveKind::Quiet));
+
+        assert_eq!(board1, board2);
     }
 }
