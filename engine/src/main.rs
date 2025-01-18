@@ -7,7 +7,7 @@ use std::{
 };
 
 use chess::{
-    board::{color::Color, moves::Move, Board},
+    board::{color::Color, Board},
     uci::SearchParams,
 };
 use engine::ChessEngine;
@@ -23,19 +23,19 @@ pub struct Engine;
 
 impl ChessEngine for Engine {
     fn name() -> String {
-        String::from("Engine v1")
+        String::from("Engine v2")
     }
 
     fn author() -> String {
         String::from("Sam")
     }
 
-    fn search(board: Board, moves_played: Vec<Move>, params: SearchParams, stop: Arc<AtomicBool>) {
+    fn search(board: Board, mut history: Vec<Board>, params: SearchParams, stop: Arc<AtomicBool>) {
         // This engine starts searching from depth 1 and deepens the search while search time left.
 
         // Calculate target search time
         let average_moves_per_game = 100;
-        let moves_to_go = average_moves_per_game - moves_played.len() / 2;
+        let moves_to_go = average_moves_per_game - history.len() / 2;
 
         // Search parameters should contain remaining time
         let time_remaining = match board.color_to_move() {
@@ -74,7 +74,11 @@ impl ChessEngine for Engine {
                     return;
                 }
 
-                let value = -negamax(board.do_move(mv), depth - 1, depth);
+                let new_board = board.do_move(mv);
+
+                history.push(new_board.clone());
+                let value = -negamax(new_board, &mut history, depth - 1, depth);
+                history.pop();
 
                 let mvw = MoveWithValue { mv, value };
                 if let Some(best) = inner_best_move {

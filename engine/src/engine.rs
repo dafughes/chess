@@ -9,10 +9,7 @@ use std::{
 };
 
 use chess::{
-    board::{
-        moves::{perft_divide, Move},
-        Board,
-    },
+    board::{moves::perft_divide, Board},
     uci::{parse_move, Command, SearchParams},
 };
 
@@ -23,7 +20,7 @@ pub trait ChessEngine {
 
     fn author() -> String;
 
-    fn search(board: Board, moves: Vec<Move>, params: SearchParams, stop: Arc<AtomicBool>);
+    fn search(board: Board, history: Vec<Board>, params: SearchParams, stop: Arc<AtomicBool>);
 }
 
 pub fn main_loop<E: ChessEngine>() {
@@ -33,7 +30,7 @@ pub fn main_loop<E: ChessEngine>() {
     let mut search_handle: Option<JoinHandle<()>> = None;
 
     let mut board = Board::default();
-    let mut played_moves: Vec<Move> = vec![];
+    let mut history: Vec<Board> = vec![];
 
     for line in stdin.lock().lines() {
         let line = line.unwrap();
@@ -48,15 +45,17 @@ pub fn main_loop<E: ChessEngine>() {
                 Command::UciNewGame => (),
                 Command::IsReady => println!("readyok"),
                 Command::Position(fen, moves) => {
-                    played_moves.clear();
-                    if let Ok(mut b) = fen.parse() {
+                    history.clear();
+                    if let Ok(mut b) = fen.parse::<Board>() {
+                        history.push(b.clone());
                         for m in moves {
                             if let Ok(mv) = parse_move(&b, &m) {
                                 b = b.do_move(mv);
-                                played_moves.push(mv);
+                                history.push(b.clone());
                             } else {
                                 b = Board::default();
-                                played_moves.clear();
+                                history.clear();
+                                history.push(b.clone());
                                 break;
                             }
                         }
@@ -64,6 +63,7 @@ pub fn main_loop<E: ChessEngine>() {
                         board = b;
                     } else {
                         board = Board::default();
+                        history.push(board.clone());
                     }
                 }
                 Command::Go(params) => {
@@ -72,8 +72,8 @@ pub fn main_loop<E: ChessEngine>() {
                     search_handle = Some(std::thread::spawn({
                         let stop_clone = stop.clone();
                         let board_clone = board.clone();
-                        let moves_clone = played_moves.clone();
-                        || E::search(board_clone, moves_clone, params, stop_clone)
+                        let history_clone = history.clone();
+                        || E::search(board_clone, history_clone, params, stop_clone)
                     }));
                 }
                 Command::Stop => stop.store(true, Ordering::Relaxed),
