@@ -6,11 +6,11 @@ use chess::{
 };
 use rand::seq::IteratorRandom;
 
-use super::Engine;
+use super::ChessEngine;
 
 pub struct RandomEngine;
 
-impl Engine for RandomEngine {
+impl ChessEngine for RandomEngine {
     fn name() -> String {
         String::from("Random")
     }

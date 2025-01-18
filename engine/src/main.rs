@@ -10,7 +10,7 @@ use chess::{
     board::{color::Color, moves::Move, Board},
     uci::SearchParams,
 };
-use engine::{random::RandomEngine, Engine};
+use engine::ChessEngine;
 use search::negamax;
 use value::{MoveWithValue, Value};
 
@@ -19,11 +19,11 @@ pub mod eval;
 pub mod search;
 pub mod value;
 
-pub struct IterativeDeepening1;
+pub struct Engine;
 
-impl Engine for IterativeDeepening1 {
+impl ChessEngine for Engine {
     fn name() -> String {
-        String::from("Iterative deepening 1")
+        String::from("Engine v1")
     }
 
     fn author() -> String {
@@ -104,5 +104,5 @@ impl Engine for IterativeDeepening1 {
 }
 
 fn main() {
-    engine::main_loop::<IterativeDeepening1>();
+    engine::main_loop::<Engine>();
 }

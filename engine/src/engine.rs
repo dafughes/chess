@@ -18,7 +18,7 @@ use chess::{
 
 pub mod random;
 
-pub trait Engine {
+pub trait ChessEngine {
     fn name() -> String;
 
     fn author() -> String;
@@ -26,7 +26,7 @@ pub trait Engine {
     fn search(board: Board, moves: Vec<Move>, params: SearchParams, stop: Arc<AtomicBool>);
 }
 
-pub fn main_loop<E: Engine>() {
+pub fn main_loop<E: ChessEngine>() {
     let stdin = std::io::stdin();
 
     let stop = Arc::new(AtomicBool::new(false));
