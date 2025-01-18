@@ -6,10 +6,17 @@ fn evaluate(board: &Board) -> Value {
     eval::material(board)
 }
 
-pub fn negamax(board: Board, history: &mut Vec<Board>, depth: usize, start_depth: usize) -> Value {
+pub fn negamax(
+    board: Board,
+    history: &mut Vec<Board>,
+    depth: usize,
+    start_depth: usize,
+    nodes_searched: &mut u64,
+) -> Value {
     let moves = board.moves();
 
     if moves.is_empty() {
+        *nodes_searched += 1;
         if board.in_check() {
             // Return a Mate with negative value since the current player is losing.
             return -Value::mate(start_depth - depth);
@@ -17,11 +24,13 @@ pub fn negamax(board: Board, history: &mut Vec<Board>, depth: usize, start_depth
             return Value::Draw;
         }
     } else if depth == 0 {
+        *nodes_searched += 1;
         return evaluate(&board);
     }
 
     // 50-move rule
     if board.halfmove_clock() >= 100 {
+        *nodes_searched += 1;
         return Value::Draw;
     }
 
@@ -33,11 +42,12 @@ pub fn negamax(board: Board, history: &mut Vec<Board>, depth: usize, start_depth
         // Fifty-move rule
         // If history of board states contains `new_board` two times -> draw
         if history.iter().filter(|b| **b == new_board).count() == 2 {
+            *nodes_searched += 1;
             return Value::Draw;
         }
 
         history.push(new_board.clone());
-        let value = -negamax(new_board, history, depth - 1, start_depth);
+        let value = -negamax(new_board, history, depth - 1, start_depth, nodes_searched);
 
         best = Some(best.unwrap_or(value).max(value));
 

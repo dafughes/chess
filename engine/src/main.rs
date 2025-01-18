@@ -11,6 +11,7 @@ use chess::{
     uci::SearchParams,
 };
 use engine::ChessEngine;
+use rand::Rng;
 use search::negamax;
 use value::{MoveWithValue, Value};
 
@@ -34,7 +35,7 @@ impl ChessEngine for Engine {
         // This engine starts searching from depth 1 and deepens the search while search time left.
 
         // Calculate target search time
-        let average_moves_per_game = 100;
+        let average_moves_per_game = 75;
         let moves_to_go = average_moves_per_game - history.len() / 2;
 
         // Search parameters should contain remaining time
@@ -60,6 +61,8 @@ impl ChessEngine for Engine {
         for depth in 1.. {
             let mut inner_best_move: Option<MoveWithValue> = None;
 
+            let mut nodes = 0;
+
             for mv in &moves {
                 // println!("depth {}, move {}", depth, mv);
                 // Check time
@@ -77,17 +80,38 @@ impl ChessEngine for Engine {
                 let new_board = board.do_move(mv);
 
                 history.push(new_board.clone());
-                let value = -negamax(new_board, &mut history, depth - 1, depth);
+                let value = -negamax(new_board, &mut history, depth - 1, depth, &mut nodes);
                 history.pop();
 
                 let mvw = MoveWithValue { mv, value };
                 if let Some(best) = inner_best_move {
                     if mvw > best {
-                        println!("info depth {} score {}", depth, mvw.value);
+                        let elapsed = (Instant::now() - start_time).as_secs_f64();
+                        let nps = nodes as f64 / elapsed;
+                        println!(
+                            "info depth {} score {} nps {}",
+                            depth, mvw.value, nps as u64
+                        );
                         inner_best_move = Some(mvw);
+                    } else if mvw.value == best.value {
+                        // Sprinkle some randomness to a chess engine's dull life
+                        if rand::thread_rng().gen_bool(0.5) {
+                            inner_best_move = Some(mvw);
+                            let elapsed = (Instant::now() - start_time).as_secs_f64();
+                            let nps = nodes as f64 / elapsed;
+                            println!(
+                                "info depth {} score {} nps {}",
+                                depth, mvw.value, nps as u64
+                            );
+                        }
                     }
                 } else {
-                    println!("info depth {} score {}", depth, mvw.value);
+                    let elapsed = (Instant::now() - start_time).as_secs_f64();
+                    let nps = nodes as f64 / elapsed;
+                    println!(
+                        "info depth {} score {} nps {}",
+                        depth, mvw.value, nps as u64
+                    );
                     inner_best_move = Some(mvw);
                 }
                 // If mate is found, return immediately
