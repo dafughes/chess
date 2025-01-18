@@ -10,6 +10,7 @@ pub enum DrawKind {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GameResult {
     Mate(Color),
+    TimeOut(Color),
     Draw(DrawKind),
     Ongoing,
 }
@@ -76,6 +77,15 @@ impl Game {
 
     pub fn board(&self) -> &Board {
         self.history.last().unwrap()
+    }
+
+    pub fn moves(&self) -> &[Move] {
+        &self.moves
+    }
+
+    /// Used for setting result manually, e.g. time out
+    pub fn set_result(&mut self, result: GameResult) {
+        self.result = result;
     }
 }
 

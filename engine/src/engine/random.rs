@@ -1,9 +1,10 @@
 use std::sync::{atomic::AtomicBool, Arc};
 
-use chess::board::{moves::Move, Board};
+use chess::{
+    board::{moves::Move, Board},
+    uci,
+};
 use rand::seq::IteratorRandom;
-
-use crate::uci;
 
 use super::Engine;
 

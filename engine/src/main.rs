@@ -6,15 +6,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chess::board::{color::Color, moves::Move, Board};
-use engine::Engine;
+use chess::{
+    board::{color::Color, moves::Move, Board},
+    uci::SearchParams,
+};
+use engine::{random::RandomEngine, Engine};
 use search::negamax;
 use value::{MoveWithValue, Value};
 
 pub mod engine;
 pub mod eval;
 pub mod search;
-pub mod uci;
 pub mod value;
 
 pub struct IterativeDeepening1;
@@ -28,12 +30,12 @@ impl Engine for IterativeDeepening1 {
         String::from("Sam")
     }
 
-    fn search(board: Board, moves: Vec<Move>, params: uci::SearchParams, stop: Arc<AtomicBool>) {
+    fn search(board: Board, moves_played: Vec<Move>, params: SearchParams, stop: Arc<AtomicBool>) {
         // This engine starts searching from depth 1 and deepens the search while search time left.
 
         // Calculate target search time
-        let average_plies_per_game = 80;
-        let plies_to_go = average_plies_per_game - moves.len();
+        let average_moves_per_game = 100;
+        let moves_to_go = average_moves_per_game - moves_played.len() / 2;
 
         // Search parameters should contain remaining time
         let time_remaining = match board.color_to_move() {
@@ -41,7 +43,7 @@ impl Engine for IterativeDeepening1 {
             Color::Black => params.btime.unwrap_or(60000),
         };
 
-        let search_time = time_remaining as f64 / plies_to_go as f64;
+        let search_time = time_remaining as f64 / moves_to_go as f64;
 
         let search_time = Duration::from_millis(search_time as u64);
         let start_time = Instant::now();
@@ -51,6 +53,7 @@ impl Engine for IterativeDeepening1 {
         let moves = board.moves();
         if moves.is_empty() {
             println!("bestmove {}", outer_best_move.unwrap_or_default().mv);
+
             return;
         }
 
@@ -58,9 +61,11 @@ impl Engine for IterativeDeepening1 {
             let mut inner_best_move: Option<MoveWithValue> = None;
 
             for mv in &moves {
+                // println!("depth {}, move {}", depth, mv);
                 // Check time
                 if (Instant::now() - start_time) >= search_time {
                     println!("bestmove {}", outer_best_move.unwrap_or_default().mv);
+
                     return;
                 }
                 // Check if commanded to stop
@@ -94,7 +99,7 @@ impl Engine for IterativeDeepening1 {
             outer_best_move = inner_best_move;
         }
 
-        println!("bestmove {}", outer_best_move.unwrap_or_default().mv)
+        println!("bestmove {}", outer_best_move.unwrap_or_default().mv);
     }
 }
 

@@ -1,4 +1,4 @@
-use chess::board::{
+use crate::board::{
     moves::{Move, MoveKind},
     piece::PieceKind,
     square::Square,
@@ -144,9 +144,9 @@ impl std::str::FromStr for Command {
                     .map_err(|_| ParseCommandError::Invalid)?;
                 Ok(Command::Perft(depth))
             }
+            "ucinewgame" => Ok(Command::UciNewGame),
             "debug" => Err(ParseCommandError::Unsupported(String::from("debug"))),
             "setoption" => Err(ParseCommandError::Unsupported(String::from("setoption"))),
-            "ucinewgame" => Err(ParseCommandError::Unsupported(String::from("ucinewgame"))),
             "ponderhit" => Err(ParseCommandError::Unsupported(String::from("ponderhit"))),
             _ => Err(ParseCommandError::Unknown),
         }

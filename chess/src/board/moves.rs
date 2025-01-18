@@ -53,6 +53,10 @@ impl Move {
     pub fn kind(&self) -> MoveKind {
         self.kind
     }
+
+    pub fn is_null(&self) -> bool {
+        self.from() == Square::A1 && self.to() == Square::A1
+    }
 }
 
 impl std::fmt::Display for Move {

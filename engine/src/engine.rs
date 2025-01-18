@@ -8,14 +8,15 @@ use std::{
     time::Instant,
 };
 
-use chess::board::{
-    moves::{perft_divide, Move},
-    Board,
+use chess::{
+    board::{
+        moves::{perft_divide, Move},
+        Board,
+    },
+    uci::{parse_move, Command, SearchParams},
 };
 
 pub mod random;
-
-use crate::uci::{self, SearchParams};
 
 pub trait Engine {
     fn name() -> String;
@@ -37,18 +38,20 @@ pub fn main_loop<E: Engine>() {
     for line in stdin.lock().lines() {
         let line = line.unwrap();
 
-        match line.parse::<uci::Command>() {
+        match line.parse::<Command>() {
             Ok(command) => match command {
-                uci::Command::Uci => {
+                Command::Uci => {
                     println!("uciok");
                     println!("id name {}", E::name());
                     println!("id author {}", E::author());
                 }
-                uci::Command::IsReady => println!("readyok"),
-                uci::Command::Position(fen, moves) => {
+                Command::UciNewGame => (),
+                Command::IsReady => println!("readyok"),
+                Command::Position(fen, moves) => {
+                    played_moves.clear();
                     if let Ok(mut b) = fen.parse() {
                         for m in moves {
-                            if let Ok(mv) = uci::parse_move(&b, &m) {
+                            if let Ok(mv) = parse_move(&b, &m) {
                                 b = b.do_move(mv);
                                 played_moves.push(mv);
                             } else {
@@ -63,7 +66,7 @@ pub fn main_loop<E: Engine>() {
                         board = Board::default();
                     }
                 }
-                uci::Command::Go(params) => {
+                Command::Go(params) => {
                     stop.store(false, Ordering::Relaxed);
 
                     search_handle = Some(std::thread::spawn({
@@ -73,16 +76,16 @@ pub fn main_loop<E: Engine>() {
                         || E::search(board_clone, moves_clone, params, stop_clone)
                     }));
                 }
-                uci::Command::Stop => stop.store(true, Ordering::Relaxed),
-                uci::Command::Quit => {
+                Command::Stop => stop.store(true, Ordering::Relaxed),
+                Command::Quit => {
                     stop.store(true, Ordering::Relaxed);
                     if let Some(handle) = search_handle.take() {
                         _ = handle.join();
                     }
                     break;
                 }
-                uci::Command::Display => println!("{}", board),
-                uci::Command::Perft(depth) => {
+                Command::Display => println!("{}", board),
+                Command::Perft(depth) => {
                     let t0 = Instant::now();
                     let nodes = perft_divide(&board, depth);
                     let elapsed = (Instant::now() - t0).as_secs_f64();
