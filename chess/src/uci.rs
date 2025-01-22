@@ -40,6 +40,25 @@ pub struct SearchParams {
     pub infinite: bool,
 }
 
+impl SearchParams {
+    pub fn new() -> Self {
+        Self {
+            searchmoves: vec![],
+            ponder: false,
+            wtime: None,
+            btime: None,
+            winc: None,
+            binc: None,
+            movestogo: None,
+            depth: None,
+            nodes: None,
+            mate: None,
+            movetime: None,
+            infinite: false,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum ParseCommandError {
     Invalid,

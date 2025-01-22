@@ -1,4 +1,6 @@
 use std::{
+    collections::HashMap,
+    str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -7,13 +9,17 @@ use std::{
 };
 
 use chess::{
-    board::{color::Color, Board},
+    board::{
+        moves::{Move, MoveKind},
+        square::Square,
+        Board,
+    },
     uci::SearchParams,
 };
 use engine::ChessEngine;
-use rand::Rng;
-use search::negamax;
-use value::{MoveWithValue, Value};
+use rand::RngCore;
+use search::Search;
+use value::Value;
 
 pub mod engine;
 pub mod eval;
@@ -24,113 +30,70 @@ pub struct Engine;
 
 impl ChessEngine for Engine {
     fn name() -> String {
-        String::from("Engine v2")
+        String::from("Engine v3")
     }
 
     fn author() -> String {
         String::from("Sam")
     }
 
-    fn search(board: Board, mut history: Vec<Board>, params: SearchParams, stop: Arc<AtomicBool>) {
-        // This engine starts searching from depth 1 and deepens the search while search time left.
+    fn search(
+        startpos: Board,
+        moves_played: Vec<Move>,
+        params: SearchParams,
+        stop: Arc<AtomicBool>,
+    ) {
+        let mut search = Search::new(startpos, moves_played, stop, params);
 
-        // Calculate target search time
-        let average_moves_per_game = 75;
-        let moves_to_go = average_moves_per_game - history.len() / 2;
+        let bestmove = search.search_alphabeta();
+        println!("bestmove {}", bestmove);
+    }
+}
 
-        // Search parameters should contain remaining time
-        let time_remaining = match board.color_to_move() {
-            Color::White => params.wtime.unwrap_or(60000),
-            Color::Black => params.btime.unwrap_or(60000),
-        };
+pub struct Timer {
+    t: Instant,
+}
 
-        let search_time = time_remaining as f64 / moves_to_go as f64;
+impl Timer {
+    pub fn new() -> Self {
+        Self { t: Instant::now() }
+    }
 
-        let search_time = Duration::from_millis(search_time as u64);
-        let start_time = Instant::now();
-
-        let mut outer_best_move: Option<MoveWithValue> = None;
-
-        let moves = board.moves();
-        if moves.is_empty() {
-            println!("bestmove {}", outer_best_move.unwrap_or_default().mv);
-
-            return;
-        }
-
-        for depth in 1.. {
-            let mut inner_best_move: Option<MoveWithValue> = None;
-
-            let mut nodes = 0;
-
-            for mv in &moves {
-                // println!("depth {}, move {}", depth, mv);
-                // Check time
-                if (Instant::now() - start_time) >= search_time {
-                    println!("bestmove {}", outer_best_move.unwrap_or_default().mv);
-
-                    return;
-                }
-                // Check if commanded to stop
-                if stop.load(Ordering::Relaxed) {
-                    println!("bestmove {}", outer_best_move.unwrap_or_default().mv);
-                    return;
-                }
-
-                let new_board = board.do_move(mv);
-
-                history.push(new_board.clone());
-                let value = -negamax(new_board, &mut history, depth - 1, depth, &mut nodes);
-                history.pop();
-
-                let mvw = MoveWithValue { mv, value };
-                if let Some(best) = inner_best_move {
-                    if mvw > best {
-                        let elapsed = (Instant::now() - start_time).as_secs_f64();
-                        let nps = nodes as f64 / elapsed;
-                        println!(
-                            "info depth {} score {} nps {}",
-                            depth, mvw.value, nps as u64
-                        );
-                        inner_best_move = Some(mvw);
-                    } else if mvw.value == best.value {
-                        // Sprinkle some randomness to a chess engine's dull life
-                        if rand::thread_rng().gen_bool(0.5) {
-                            inner_best_move = Some(mvw);
-                            let elapsed = (Instant::now() - start_time).as_secs_f64();
-                            let nps = nodes as f64 / elapsed;
-                            println!(
-                                "info depth {} score {} nps {}",
-                                depth, mvw.value, nps as u64
-                            );
-                        }
-                    }
-                } else {
-                    let elapsed = (Instant::now() - start_time).as_secs_f64();
-                    let nps = nodes as f64 / elapsed;
-                    println!(
-                        "info depth {} score {} nps {}",
-                        depth, mvw.value, nps as u64
-                    );
-                    inner_best_move = Some(mvw);
-                }
-                // If mate is found, return immediately
-                match value {
-                    Value::Mate(n) if n >= 0 => {
-                        println!("bestmove {}", mv);
-                        return;
-                    }
-                    _ => (),
-                }
-            }
-
-            outer_best_move = inner_best_move;
-        }
-
-        println!("bestmove {}", outer_best_move.unwrap_or_default().mv);
+    pub fn elapsed(&self) -> f64 {
+        (Instant::now() - self.t).as_secs_f64()
     }
 }
 
 fn main() {
-    engine::main_loop::<Engine>();
+    // engine::main_loop::<Engine>();
+
+    // let mut params = SearchParams::new();
+    // params.depth = Some(5);
+
+    // let pos = Board::from_str("3r4/pR2N3/2pkb3/5p2/8/2B5/qP3PPP/4R1K1 w - - 1 0").unwrap();
+
+    // let mut search = Search::new(
+    //     pos.clone(),
+    //     vec![],
+    //     Arc::new(AtomicBool::new(false)),
+    //     params,
+    // );
+    // let mut nodes = 0;
+    // let mut mv = Move::default();
+    // let t = Timer::new();
+    // for i in 0..10 {
+    //     mv = search.search_alphabeta();
+    //     nodes += search.leaf_nodes_searched;
+    // }
+
+    // let elapsed = t.elapsed();
+    // let nps = nodes as f64 / elapsed;
+
+    // println!(
+    //     "Bestmove: {}, nodes searched: {}, Elapsed: {} s, nps: {:.2}",
+    //     mv,
+    //     nodes,
+    //     t.elapsed(),
+    //     nps
+    // );
 }

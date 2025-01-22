@@ -1,6 +1,6 @@
 use chess::board::moves::Move;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum Value {
     #[default]
     Draw,
@@ -13,7 +13,7 @@ impl Value {
         Value::Mate((plies as i32 + 1) / 2)
     }
 
-    fn to_i32(self) -> i32 {
+    pub(crate) fn to_i32(self) -> i32 {
         match self {
             Value::Mate(turns) => turns.signum() * 1_000_000 - turns,
             Value::Evaluation(v) => v,
@@ -21,6 +21,14 @@ impl Value {
         }
     }
 }
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        self.to_i32() == other.to_i32()
+    }
+}
+
+impl Eq for Value {}
 
 impl std::ops::Neg for Value {
     type Output = Self;
@@ -71,5 +79,66 @@ impl Ord for MoveWithValue {
 impl PartialOrd for MoveWithValue {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chess::board::{
+        moves::{Move, MoveKind},
+        square::Square,
+    };
+
+    use crate::value::Value;
+
+    use super::MoveWithValue;
+
+    #[test]
+    fn equal() {
+        assert_eq!(Value::Draw, Value::Draw);
+        assert_eq!(Value::Mate(2), -Value::Mate(-2));
+    }
+
+    #[test]
+    fn neg() {
+        assert_eq!(Value::Mate(2), -Value::Mate(-2));
+    }
+
+    #[test]
+    fn comparison() {
+        assert!(Value::Draw > Value::Evaluation(-100));
+        assert!(Value::Mate(2) > Value::Evaluation(-100));
+        assert!(Value::Mate(-2) < Value::Mate(-5));
+    }
+
+    #[test]
+    fn move_with_value() {
+        let a = MoveWithValue {
+            mv: Move::new(Square::A1, Square::A2, MoveKind::Quiet),
+            value: Value::Evaluation(100),
+        };
+        let b = MoveWithValue {
+            mv: Move::new(Square::A1, Square::A2, MoveKind::Quiet),
+            value: Value::Evaluation(200),
+        };
+
+        assert!(b > a);
+        assert!(b >= a);
+        assert!(a < b);
+    }
+
+    #[test]
+    fn move_with_value2() {
+        let a = MoveWithValue {
+            mv: Move::new(Square::A1, Square::A2, MoveKind::Quiet),
+            value: Value::Evaluation(100),
+        };
+        let b = MoveWithValue {
+            mv: Move::new(Square::A1, Square::A2, MoveKind::Quiet),
+            value: Value::Mate(2),
+        };
+
+        assert!(b >= a);
+        assert!(a < b);
     }
 }

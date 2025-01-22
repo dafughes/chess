@@ -8,6 +8,7 @@ use crate::bitboard::Bitboard;
 
 pub mod castlingrights;
 pub mod color;
+pub mod hash;
 pub mod moves;
 pub mod piece;
 pub mod square;
@@ -22,6 +23,7 @@ pub struct Board {
     cr: CastlingRights,
     ep: Option<Square>,
     halfmove: u8,
+    hash: u64,
 }
 
 impl PartialEq for Board {
@@ -35,11 +37,35 @@ impl PartialEq for Board {
 
 impl Eq for Board {}
 
+fn calculate_hash(board: &Board) -> u64 {
+    let mut hash = 0;
+    for rank in Rank::iter() {
+        for file in File::iter() {
+            let square = Square::new(rank, file);
+            if let Some(piece) = board.get(square) {
+                hash ^= self::hash::PIECES_HASH[square as usize][piece as usize];
+            }
+        }
+    }
+
+    if board.color_to_move() == Color::Black {
+        hash ^= self::hash::BLACK_HASH;
+    }
+
+    hash ^= self::hash::CR_HASH[board.castling_rights().0 as usize];
+
+    if let Some(ep) = board.en_passant_square() {
+        hash ^= self::hash::EP_HASH[ep.file() as usize];
+    }
+
+    hash
+}
+
 impl Board {
     pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     /// Creates an empty chessboard.
     pub fn new() -> Self {
-        Self {
+        let mut board = Self {
             squares: [None; 64],
             pieces_bb: [Bitboard::default(); 6],
             colors_bb: [Bitboard::default(); 2],
@@ -48,7 +74,16 @@ impl Board {
             cr: CastlingRights::new(),
             ep: None,
             halfmove: 0,
-        }
+            hash: 0,
+        };
+
+        board.hash = calculate_hash(&board);
+        board
+    }
+
+    /// TODO: Explain why not implement the Hash trait.
+    pub fn hash(&self) -> u64 {
+        self.hash
     }
 
     pub fn color_to_move(&self) -> Color {
@@ -84,6 +119,9 @@ impl Board {
         let bb = Bitboard::from(square);
         self.pieces_bb[piece.kind() as usize] |= bb;
         self.colors_bb[piece.color() as usize] |= bb;
+
+        // Update hash
+        self.hash ^= hash::PIECES_HASH[square as usize][piece as usize];
     }
 
     pub fn pieces_by_kind(&self, kind: PieceKind) -> Bitboard {
@@ -103,6 +141,10 @@ impl Board {
             let bb = !Bitboard::from(square);
             self.pieces_bb[piece.kind() as usize] &= bb;
             self.colors_bb[piece.color() as usize] &= bb;
+
+            // Update hash
+            self.hash ^= hash::PIECES_HASH[square as usize][piece as usize];
+
             Some(piece)
         } else {
             None
@@ -115,6 +157,10 @@ impl Board {
             let bb = Bitboard::from(from) ^ Bitboard::from(to);
             self.pieces_bb[piece.kind() as usize] ^= bb;
             self.colors_bb[piece.color() as usize] ^= bb;
+
+            // Update hash
+            self.hash ^= hash::PIECES_HASH[from as usize][piece as usize];
+            self.hash ^= hash::PIECES_HASH[to as usize][piece as usize];
         }
     }
 
@@ -134,6 +180,11 @@ impl Board {
             ..*self
         };
 
+        // Update hash: en passant
+        if let Some(ep) = self.en_passant_square() {
+            new_board.hash ^= hash::EP_HASH[ep.file() as usize];
+        }
+
         match mv.kind() {
             moves::MoveKind::Quiet => new_board.move_piece(from, to),
             moves::MoveKind::Capture => {
@@ -142,8 +193,11 @@ impl Board {
                 new_board.move_piece(from, to);
             }
             moves::MoveKind::DoublePush => {
-                new_board.ep = Some(Square::from_u8((from as u8 + to as u8) / 2));
+                let ep = Square::from_u8((from as u8 + to as u8) / 2);
+                new_board.ep = Some(ep);
                 new_board.move_piece(from, to);
+
+                new_board.hash ^= hash::EP_HASH[ep.file() as usize];
             }
             moves::MoveKind::EnPassant => {
                 let capture_square = Square::new(from.rank(), to.file());
@@ -200,6 +254,12 @@ impl Board {
             Square::A8 => new_board.cr.remove(Castling::Queenside(Color::Black)),
             _ => (),
         }
+
+        // Update hash: color & cr
+        new_board.hash ^= hash::CR_HASH[self.castling_rights().0 as usize];
+        new_board.hash ^= hash::CR_HASH[new_board.castling_rights().0 as usize];
+
+        new_board.hash ^= hash::BLACK_HASH;
 
         if new_board.color == Color::Black {
             new_board.fullmove += 1;
@@ -335,8 +395,10 @@ impl std::str::FromStr for Board {
         }
 
         board.color = fields.next().ok_or(())?.parse()?;
-        board.cr = fields.next().ok_or(())?.parse()?;
-        board.ep = match fields.next().ok_or(())? {
+
+        board.cr = fields.next().unwrap_or("-").parse()?;
+
+        board.ep = match fields.next().unwrap_or("-") {
             "-" => None,
             s => Some(s.parse()?),
         };
@@ -347,6 +409,8 @@ impl std::str::FromStr for Board {
             .unwrap_or("1")
             .parse::<usize>()
             .map_err(|_| ())?;
+
+        board.hash = calculate_hash(&board);
 
         Ok(board)
     }
@@ -380,6 +444,8 @@ impl std::fmt::Display for Board {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use crate::board::{color::Color, square::Square};
 
     use super::{
@@ -454,5 +520,33 @@ mod tests {
         board2 = board2.do_move(Move::new(Square::B8, Square::A6, MoveKind::Quiet));
 
         assert_eq!(board1, board2);
+    }
+
+    #[test]
+    fn equal_board_equal_hash() {
+        let mut board1 = Board::default();
+        board1 = board1.do_move(Move::new(Square::A2, Square::A4, MoveKind::DoublePush));
+        board1 = board1.do_move(Move::new(Square::B8, Square::A6, MoveKind::Quiet));
+        board1 = board1.do_move(Move::new(Square::E2, Square::E3, MoveKind::Quiet));
+        board1 = board1.do_move(Move::new(Square::G8, Square::H6, MoveKind::Quiet));
+
+        let mut board2 =
+            Board::from_str("rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq a3 0 1").unwrap();
+        board2 = board2.do_move(Move::new(Square::G8, Square::H6, MoveKind::Quiet));
+        board2 = board2.do_move(Move::new(Square::E2, Square::E3, MoveKind::Quiet));
+        board2 = board2.do_move(Move::new(Square::B8, Square::A6, MoveKind::Quiet));
+
+        assert_eq!(board1.hash(), board2.hash());
+    }
+
+    #[test]
+    fn not_equal_board_should_not_have_equal_hash() {
+        let mut board1 = Board::default();
+
+        let mut board2 =
+            Board::from_str("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ")
+                .unwrap();
+
+        assert_ne!(board1.hash(), board2.hash());
     }
 }

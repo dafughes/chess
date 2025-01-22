@@ -1,6 +1,9 @@
 use std::sync::{atomic::AtomicBool, Arc};
 
-use chess::{board::Board, uci};
+use chess::{
+    board::{moves::Move, Board},
+    uci,
+};
 use rand::seq::IteratorRandom;
 
 use super::ChessEngine;
@@ -16,8 +19,8 @@ impl ChessEngine for RandomEngine {
         String::from("Sam")
     }
 
-    fn search(board: Board, _: Vec<Board>, _: uci::SearchParams, _: Arc<AtomicBool>) {
-        let bestmove = board
+    fn search(startpos: Board, _: Vec<Move>, _: uci::SearchParams, _: Arc<AtomicBool>) {
+        let bestmove = startpos
             .moves()
             .into_iter()
             .choose(&mut rand::thread_rng())

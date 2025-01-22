@@ -57,6 +57,13 @@ impl Move {
     pub fn is_null(&self) -> bool {
         self.from() == Square::A1 && self.to() == Square::A1
     }
+
+    pub fn is_cap(&self) -> bool {
+        match self.kind() {
+            MoveKind::EnPassant | MoveKind::Capture | MoveKind::PromotionCapture(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Display for Move {
@@ -186,10 +193,20 @@ impl Board {
         self.rook_moves(&mut movelist);
         self.king_moves(&mut movelist);
 
-        movelist
-            .into_iter()
-            .filter(|mv| self.is_legal(*mv))
-            .collect()
+        let mut result = Movelist::new();
+
+        for mv in movelist {
+            if self.is_legal(mv) {
+                result.push(mv);
+            }
+        }
+
+        result
+
+        // movelist
+        //     .into_iter()
+        //     .filter(|mv| self.is_legal(*mv))
+        //     .collect()
     }
 
     fn is_legal(&self, mv: Move) -> bool {

@@ -18,8 +18,8 @@ impl Castling {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CastlingRights(u8);
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct CastlingRights(pub(crate) u8);
 
 impl CastlingRights {
     pub fn new() -> Self {
