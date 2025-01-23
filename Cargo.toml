@@ -1,9 +1,6 @@
 [workspace]
 members = ["chess", "engine"]
 
-
-
-
 resolver = "2"
 
 [profile.test]
@@ -19,3 +16,4 @@ debug-assertions = false
 panic = "abort"
 codegen-units = 1
 lto = true
+

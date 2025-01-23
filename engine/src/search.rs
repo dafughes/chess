@@ -7,13 +7,12 @@ use std::{
 };
 
 use chess::{
-    board::{color::Color, moves::Move, piece, square::Square, Board},
+    board::{color::Color, moves::Move, Board},
     uci::SearchParams,
 };
-use rand::Rng;
 
 use crate::{
-    eval::{material, piece_positions},
+    eval::material,
     value::{MoveWithValue, Value},
 };
 
@@ -343,11 +342,7 @@ mod tests {
     };
 
     use chess::{
-        board::{
-            moves::{Move, MoveKind},
-            square::Square,
-            Board,
-        },
+        board::{moves::Move, Board},
         uci::{self, SearchParams},
     };
 

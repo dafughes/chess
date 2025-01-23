@@ -65,35 +65,5 @@ impl Timer {
 }
 
 fn main() {
-    // engine::main_loop::<Engine>();
-
-    // let mut params = SearchParams::new();
-    // params.depth = Some(5);
-
-    // let pos = Board::from_str("3r4/pR2N3/2pkb3/5p2/8/2B5/qP3PPP/4R1K1 w - - 1 0").unwrap();
-
-    // let mut search = Search::new(
-    //     pos.clone(),
-    //     vec![],
-    //     Arc::new(AtomicBool::new(false)),
-    //     params,
-    // );
-    // let mut nodes = 0;
-    // let mut mv = Move::default();
-    // let t = Timer::new();
-    // for i in 0..10 {
-    //     mv = search.search_alphabeta();
-    //     nodes += search.leaf_nodes_searched;
-    // }
-
-    // let elapsed = t.elapsed();
-    // let nps = nodes as f64 / elapsed;
-
-    // println!(
-    //     "Bestmove: {}, nodes searched: {}, Elapsed: {} s, nps: {:.2}",
-    //     mv,
-    //     nodes,
-    //     t.elapsed(),
-    //     nps
-    // );
+    engine::main_loop::<Engine>();
 }
