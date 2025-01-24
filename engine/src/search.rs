@@ -39,7 +39,11 @@ impl Search {
         let mut i = 1;
 
         for mv in moves {
+            // Captures or pawn moves are irreversible, so history can start from those
             root = root.do_move(mv);
+            if root.halfmove_clock() == 0 {
+                i = 0;
+            }
             history[i] = root.hash();
             i += 1;
         }
@@ -185,7 +189,6 @@ impl Search {
     }
 
     fn evaluate(&self, board: &Board) -> Value {
-        // Value::Evaluation(material(board))
         Value::Evaluation(material(board) + piece_positions(board))
     }
 
@@ -220,23 +223,19 @@ impl Search {
 
         // Check repetitions
         let mut rep = 0;
-        for i in 0..(self.i + depth - 1) {
-            if self.history[i] == board.hash() {
+
+        let mut i: isize = (self.i + depth - 1) as isize;
+        while i > 0 {
+            if self.history[i as usize] == board.hash() {
                 rep += 1;
             }
+
+            i -= 2;
         }
 
-        if rep >= 2 {
+        if rep >= 3 {
             return Value::Draw;
         }
-        // if self.history[0..self.i]
-        //     .iter()
-        //     .filter(|h| **h == board.hash())
-        //     .count()
-        //     == 3
-        // {
-        //     return Value::Draw;
-        // }
 
         // TODO: 50-move rule
 
