@@ -12,7 +12,7 @@ use chess::{
 };
 
 use crate::{
-    eval::material,
+    eval::{material, piece_positions},
     value::{MoveWithValue, Value},
 };
 
@@ -185,8 +185,8 @@ impl Search {
     }
 
     fn evaluate(&self, board: &Board) -> Value {
-        Value::Evaluation(material(board))
-        // Value::Evaluation(material(board) + piece_positions(board))
+        // Value::Evaluation(material(board))
+        Value::Evaluation(material(board) + piece_positions(board))
     }
 
     fn negamax_alphabeta(
@@ -220,13 +220,13 @@ impl Search {
 
         // Check repetitions
         let mut rep = 0;
-        for i in 0..(self.i + depth) {
+        for i in 0..(self.i + depth - 1) {
             if self.history[i] == board.hash() {
                 rep += 1;
             }
         }
 
-        if rep >= 3 {
+        if rep >= 2 {
             return Value::Draw;
         }
         // if self.history[0..self.i]

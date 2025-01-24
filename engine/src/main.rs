@@ -30,7 +30,7 @@ pub struct Engine;
 
 impl ChessEngine for Engine {
     fn name() -> String {
-        String::from("Engine v3")
+        String::from("Engine v3b")
     }
 
     fn author() -> String {

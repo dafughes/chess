@@ -1,4 +1,12 @@
-use crate::board::{color::Color, moves::Move, Board};
+use chrono::{format, Utc};
+
+use crate::board::{
+    self,
+    color::Color,
+    moves::{Move, MoveKind},
+    piece::PieceKind,
+    Board,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DrawKind {
@@ -87,6 +95,119 @@ impl Game {
     pub fn set_result(&mut self, result: GameResult) {
         self.result = result;
     }
+}
+
+fn move_as_san(mv: &Move, board: &Board) -> String {
+    // Piece symbol
+    let piece_kind = board.get(mv.from()).unwrap().kind();
+    let piece_symbol = match piece_kind {
+        PieceKind::Pawn => String::new(),
+        _ => char::from(piece_kind).to_ascii_uppercase().to_string(),
+    };
+
+    // Square
+    let to = mv.to().to_string();
+
+    // Count ambiguity
+    let ambiguous_moves = board
+        .moves()
+        .into_iter()
+        .filter(|m| m.to() == mv.to() && board.get(m.from()).unwrap().kind() == piece_kind)
+        .collect::<Vec<_>>();
+
+    let from: String = if ambiguous_moves.len() == 1 {
+        String::new()
+    } else {
+        let file_ambiguity = ambiguous_moves
+            .iter()
+            .filter(|m| m.from().file() == mv.from().file())
+            .count();
+        let rank_ambiguity = ambiguous_moves
+            .iter()
+            .filter(|m| m.from().rank() == mv.from().rank())
+            .count();
+
+        if file_ambiguity == 1 {
+            mv.from().file().to_string()
+        } else if rank_ambiguity == 1 {
+            mv.from().rank().to_string()
+        } else {
+            mv.from().to_string()
+        }
+    };
+
+    let mut san = match mv.kind() {
+        MoveKind::CastleKingside => String::from("O-O"),
+        MoveKind::CastleQueenside => String::from("O-O-O"),
+        MoveKind::Capture | MoveKind::EnPassant => format!("{}{}x{}", piece_symbol, from, to),
+        MoveKind::Promotion(prom) => format!(
+            "{}{}{}={}",
+            piece_symbol,
+            from,
+            to,
+            char::from(prom).to_ascii_uppercase()
+        ),
+        MoveKind::PromotionCapture(prom) => format!(
+            "{}x{}{}={}",
+            piece_symbol,
+            from,
+            to,
+            char::from(prom).to_ascii_uppercase()
+        ),
+        _ => format!("{}{}{}", piece_symbol, from, to),
+    };
+
+    // Check/Mate
+    if board.in_check() {
+        if board.do_move(*mv).moves().is_empty() {
+            san.push('+');
+        } else {
+            san.push('#');
+        }
+    }
+    san
+}
+
+pub fn write_pgn(
+    game: &Game,
+    event: &str,
+    site: &str,
+    date: chrono::DateTime<Utc>,
+    round: &str,
+    white: &str,
+    black: &str,
+    result: GameResult,
+) -> String {
+    let mut pgn = String::new();
+
+    pgn.push_str(format!("[Event \"{}\"]\n", event).as_str());
+    pgn.push_str(format!("[Site \"{}\"]\n", site).as_str());
+    pgn.push_str(format!("[Date \"{}\"]\n", date.format("%Y.%m.%d")).as_str());
+    pgn.push_str(format!("[Round \"{}\"]\n", round).as_str());
+    pgn.push_str(format!("[White \"{}\"]\n", white).as_str());
+    pgn.push_str(format!("[Black \"{}\"]\n", black).as_str());
+
+    let result_string = match result {
+        GameResult::Mate(Color::White) | GameResult::TimeOut(Color::White) => "1 - 0",
+        GameResult::Mate(Color::Black) | GameResult::TimeOut(Color::Black) => "0 - 1",
+        GameResult::Draw(_) => "1/2-1/2",
+        GameResult::Ongoing => "*",
+    };
+    pgn.push_str(format!("[Result \"{}\"]\n", result_string).as_str());
+
+    pgn.push('\n');
+
+    for (mv, board) in game.moves().iter().zip(game.history.iter()) {
+        if board.color_to_move() == Color::Black {
+            pgn.push_str(format!("{} ", move_as_san(mv, board)).as_str());
+            pgn.push('\n');
+        } else {
+            pgn.push_str(format!("{}.", board.fullmove_number()).as_str());
+            pgn.push_str(format!("{} ", move_as_san(mv, board)).as_str());
+        }
+    }
+
+    pgn
 }
 
 #[cfg(test)]
