@@ -157,11 +157,12 @@ fn move_as_san(mv: &Move, board: &Board) -> String {
     };
 
     // Check/Mate
-    if board.in_check() {
-        if board.do_move(*mv).moves().is_empty() {
-            san.push('+');
-        } else {
+    let new_board = board.do_move(*mv);
+    if new_board.in_check() {
+        if new_board.moves().is_empty() {
             san.push('#');
+        } else {
+            san.push('+');
         }
     }
     san
