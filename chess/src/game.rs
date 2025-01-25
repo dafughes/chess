@@ -1,7 +1,6 @@
-use chrono::{format, Utc};
+use chrono::Utc;
 
 use crate::board::{
-    self,
     color::Color,
     moves::{Move, MoveKind},
     piece::PieceKind,
@@ -173,21 +172,28 @@ pub fn write_pgn(
     event: &str,
     site: &str,
     date: chrono::DateTime<Utc>,
+    time_control: &str,
     round: &str,
     white: &str,
     black: &str,
-    result: GameResult,
 ) -> String {
     let mut pgn = String::new();
 
     pgn.push_str(format!("[Event \"{}\"]\n", event).as_str());
     pgn.push_str(format!("[Site \"{}\"]\n", site).as_str());
     pgn.push_str(format!("[Date \"{}\"]\n", date.format("%Y.%m.%d")).as_str());
+    pgn.push_str(format!("[TimeControl \"{}\"]\n", time_control).as_str());
     pgn.push_str(format!("[Round \"{}\"]\n", round).as_str());
+    let termination = match game.result() {
+        GameResult::TimeOut(_) => "time forfeit",
+        GameResult::Ongoing => "unterminated",
+        _ => "normal",
+    };
+    pgn.push_str(format!("[Termination \"{}\"]\n", termination).as_str());
     pgn.push_str(format!("[White \"{}\"]\n", white).as_str());
     pgn.push_str(format!("[Black \"{}\"]\n", black).as_str());
 
-    let result_string = match result {
+    let result_string = match game.result() {
         GameResult::Mate(Color::White) | GameResult::TimeOut(Color::White) => "1 - 0",
         GameResult::Mate(Color::Black) | GameResult::TimeOut(Color::Black) => "0 - 1",
         GameResult::Draw(_) => "1/2-1/2",

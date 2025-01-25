@@ -20,7 +20,7 @@ pub struct Search {
     root: Board,
     stop: Arc<AtomicBool>,
     params: SearchParams,
-    pub leaf_nodes_searched: u64,
+    pub nodes_searched: u64,
     history: [u64; 1024], // TODO: Max game length in plies?
     i: usize,
 }
@@ -52,14 +52,14 @@ impl Search {
             root,
             stop,
             params,
-            leaf_nodes_searched: 0,
+            nodes_searched: 0,
             history,
             i,
         }
     }
 
     fn info(&self, depth: usize, currmove: Move, score: Value, t: Duration) {
-        let nps = self.leaf_nodes_searched as f64 / t.as_secs_f64();
+        let nps = self.nodes_searched as f64 / t.as_secs_f64();
         println!(
             "info depth {} score {} nps {} currmove {}",
             depth, score, nps as u64, currmove
@@ -68,7 +68,7 @@ impl Search {
 
     pub fn search(&mut self) -> Move {
         // Reset node counter, reset every depth iteration?
-        self.leaf_nodes_searched = 0;
+        self.nodes_searched = 0;
 
         // Calculate target search time
         let average_moves_per_game = 80;
@@ -124,7 +124,7 @@ impl Search {
 
     pub fn search_alphabeta(&mut self) -> Move {
         // Reset node counter, reset every depth iteration?
-        self.leaf_nodes_searched = 0;
+        self.nodes_searched = 0;
 
         // Calculate target search time
         let average_moves_per_game = 80;
@@ -192,6 +192,78 @@ impl Search {
         Value::Evaluation(material(board) + piece_positions(board))
     }
 
+    fn quiescence(
+        &mut self,
+        board: Board,
+        mut alpha: Value,
+        beta: Value,
+        depth: usize,
+        color: Color,
+    ) -> Value {
+        self.nodes_searched += 1;
+        // Update history
+        self.history[self.i + depth - 1] = board.hash();
+
+        let moves = board.moves();
+
+        let standing_pat = match color {
+            Color::White => self.evaluate(&board),
+            Color::Black => -self.evaluate(&board),
+        };
+        let mut best = standing_pat;
+        if standing_pat >= beta {
+            return standing_pat;
+        }
+        if standing_pat > alpha {
+            alpha = standing_pat;
+        }
+
+        if moves.is_empty() {
+            if board.in_check() {
+                return -Value::mate(depth);
+            } else {
+                return Value::Draw;
+            }
+        }
+
+        // Check repetitions
+        let mut rep = 0;
+
+        let mut i: isize = (self.i + depth - 1) as isize;
+        while i > 0 {
+            if self.history[i as usize] == board.hash() {
+                rep += 1;
+            }
+
+            i -= 2;
+        }
+
+        if rep >= 3 {
+            return Value::Draw;
+        }
+
+        // TODO: 50-move rule
+
+        for mv in moves {
+            if !mv.is_cap() {
+                continue;
+            }
+            let value = -self.quiescence(board.do_move(mv), -beta, -alpha, depth + 1, !color);
+
+            if value >= beta {
+                return value;
+            }
+            if value > best {
+                best = value;
+            }
+            if value > alpha {
+                alpha = value;
+            }
+        }
+
+        best
+    }
+
     fn negamax_alphabeta(
         &mut self,
         board: Board,
@@ -202,23 +274,24 @@ impl Search {
         color: Color,
     ) -> Value {
         // Update history
+        self.nodes_searched += 1;
         self.history[self.i + depth - 1] = board.hash();
 
         let moves = board.moves();
 
         if moves.is_empty() {
-            self.leaf_nodes_searched += 1;
             if board.in_check() {
                 return -Value::mate(depth);
             } else {
                 return Value::Draw;
             }
         } else if depth >= max_depth {
-            self.leaf_nodes_searched += 1;
-            return match color {
-                Color::White => self.evaluate(&board),
-                Color::Black => -self.evaluate(&board),
-            };
+            return self.quiescence(board, alpha, beta, depth, color);
+            // self.leaf_nodes_searched += 1;
+            // return match color {
+            //     Color::White => self.evaluate(&board),
+            //     Color::Black => -self.evaluate(&board),
+            // };
         }
 
         // Check repetitions
@@ -265,14 +338,14 @@ impl Search {
         let moves = board.moves();
 
         if moves.is_empty() {
-            self.leaf_nodes_searched += 1;
+            self.nodes_searched += 1;
             if board.in_check() {
                 return -Value::mate(depth);
             } else {
                 return Value::Draw;
             }
         } else if depth >= max_depth {
-            self.leaf_nodes_searched += 1;
+            self.nodes_searched += 1;
             return self.evaluate(&board);
         }
 
