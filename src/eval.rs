@@ -1,4 +1,4 @@
-use chess::board::{
+use crate::board::{
     color::Color,
     piece::PieceKind,
     square::{File, Rank, Square},
@@ -97,7 +97,7 @@ pub fn piece_positions(board: &Board) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use chess::board::{piece::Piece, square::Square, Board};
+    use crate::board::{piece::Piece, square::Square, Board};
 
     use crate::eval::piece_positions;
 

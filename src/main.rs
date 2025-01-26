@@ -1,36 +1,20 @@
 use std::{
-    collections::HashMap,
-    str::FromStr,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    time::{Duration, Instant},
+    sync::{atomic::AtomicBool, Arc},
+    time::Instant,
 };
 
 use chess::{
-    board::{
-        moves::{Move, MoveKind},
-        square::Square,
-        Board,
-    },
+    board::{moves::Move, Board},
+    engine::{self, ChessEngine},
+    search::Search,
     uci::SearchParams,
 };
-use engine::ChessEngine;
-use rand::RngCore;
-use search::Search;
-use value::Value;
-
-pub mod engine;
-pub mod eval;
-pub mod search;
-pub mod value;
 
 pub struct Engine;
 
 impl ChessEngine for Engine {
     fn name() -> String {
-        String::from("Engine v4")
+        String::from("Engine v4b")
     }
 
     fn author() -> String {

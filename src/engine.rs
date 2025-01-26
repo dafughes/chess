@@ -8,15 +8,13 @@ use std::{
     time::Instant,
 };
 
-use chess::{
+use crate::{
     board::{
         moves::{perft_divide, Move},
         Board,
     },
     uci::{parse_move, Command, SearchParams},
 };
-
-pub mod random;
 
 pub trait ChessEngine {
     fn name() -> String;

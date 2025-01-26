@@ -1,4 +1,4 @@
-use chess::board::moves::Move;
+use crate::board::moves::Move;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub enum Value {
@@ -84,12 +84,14 @@ impl PartialOrd for MoveWithValue {
 
 #[cfg(test)]
 mod tests {
-    use chess::board::{
-        moves::{Move, MoveKind},
-        square::Square,
-    };
 
-    use crate::value::Value;
+    use crate::{
+        board::{
+            moves::{Move, MoveKind},
+            square::Square,
+        },
+        value::Value,
+    };
 
     use super::MoveWithValue;
 

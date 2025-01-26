@@ -6,23 +6,79 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chess::{
-    board::{color::Color, moves::Move, Board},
-    uci::SearchParams,
-};
-
 use crate::{
+    board::{color::Color, moves::Move, Board},
     eval::{material, piece_positions},
+    uci::SearchParams,
     value::{MoveWithValue, Value},
 };
+
+pub struct StackStack<T, const N: usize> {
+    data: [T; N],
+    top: usize,
+}
+
+impl<T: Default + Copy, const N: usize> StackStack<T, N> {
+    pub fn new() -> Self {
+        Self {
+            data: [T::default(); N],
+            top: 0,
+        }
+    }
+
+    pub fn push(&mut self, value: T) {
+        self.data[self.top] = value;
+        self.top += 1;
+    }
+
+    pub fn pop(&mut self) {
+        if self.top > 0 {
+            self.top -= 1;
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.top = 0;
+    }
+
+    pub fn len(&self) -> usize {
+        self.top
+    }
+}
+
+pub struct IntoIter<'a, T, const N: usize> {
+    stack: &'a StackStack<T, N>,
+    i: usize,
+}
+
+impl<'a, T: Copy, const N: usize> Iterator for IntoIter<'a, T, N> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.i < self.stack.top {
+            self.i += 1;
+            Some(self.stack.data[self.i - 1])
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T: Copy, const N: usize> IntoIterator for &'a StackStack<T, N> {
+    type Item = T;
+    type IntoIter = IntoIter<'a, T, N>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Self::IntoIter { stack: self, i: 0 }
+    }
+}
 
 pub struct Search {
     root: Board,
     stop: Arc<AtomicBool>,
     params: SearchParams,
-    pub nodes_searched: u64,
-    history: [u64; 1024], // TODO: Max game length in plies?
-    i: usize,
+    nodes_searched: u64,
+    history: StackStack<u64, 1024>,
 }
 
 impl Search {
@@ -32,20 +88,18 @@ impl Search {
         stop: Arc<AtomicBool>,
         params: SearchParams,
     ) -> Self {
-        // TODO: Build repetition history
         let mut root = startpos;
-        let mut history = [0; 1024];
-        history[0] = root.hash();
-        let mut i = 1;
+
+        let mut history = StackStack::new();
+        history.push(root.hash());
 
         for mv in moves {
             // Captures or pawn moves are irreversible, so history can start from those
             root = root.do_move(mv);
             if root.halfmove_clock() == 0 {
-                i = 0;
+                history.clear();
             }
-            history[i] = root.hash();
-            i += 1;
+            history.push(root.hash());
         }
 
         Self {
@@ -54,7 +108,6 @@ impl Search {
             params,
             nodes_searched: 0,
             history,
-            i,
         }
     }
 
@@ -66,70 +119,14 @@ impl Search {
         );
     }
 
-    pub fn search(&mut self) -> Move {
-        // Reset node counter, reset every depth iteration?
-        self.nodes_searched = 0;
-
-        // Calculate target search time
-        let average_moves_per_game = 80;
-        let past_moves = self.i;
-        let moves_to_go = average_moves_per_game - past_moves / 2;
-
-        // Search parameters should contain remaining time
-        let time_remaining = match self.root.color_to_move() {
-            Color::White => self.params.wtime.unwrap_or(60000),
-            Color::Black => self.params.btime.unwrap_or(60000),
-        };
-
-        let search_time = time_remaining as f64 / moves_to_go as f64;
-
-        let search_time = Duration::from_millis(search_time as u64);
-        let start_time = Instant::now();
-
-        let max_depth = 16;
-
-        let mut outer_best: Option<MoveWithValue> = None;
-
-        for depth in 1..max_depth {
-            let mut best: Option<MoveWithValue> = None;
-
-            for mv in self.root.moves() {
-                // Check time & stop command
-                if (Instant::now() - start_time) >= search_time || self.stop.load(Ordering::Relaxed)
-                {
-                    // TODO: If inner best is better, return it
-                    return outer_best.unwrap_or_default().mv;
-                }
-
-                let new_board = self.root.do_move(mv);
-
-                let value = -self.negamax(new_board, 1, depth);
-                let mvw = MoveWithValue { mv, value };
-                if let Some(b) = best {
-                    if mvw > b {
-                        best = Some(mvw);
-                        self.info(depth, mv, value, Instant::now() - start_time);
-                    }
-                } else {
-                    best = Some(mvw);
-                    self.info(depth, mv, value, Instant::now() - start_time);
-                }
-            }
-
-            outer_best = best;
-        }
-
-        outer_best.unwrap_or_default().mv
-    }
-
     pub fn search_alphabeta(&mut self) -> Move {
         // Reset node counter, reset every depth iteration?
         self.nodes_searched = 0;
 
         // Calculate target search time
         let average_moves_per_game = 80;
-        let past_moves = self.i;
-        let moves_to_go = average_moves_per_game - past_moves / 2;
+        let past_moves = self.root.fullmove_number();
+        let moves_to_go = average_moves_per_game - past_moves;
 
         // Search to depth
         let (max_depth, has_time_limit) = if let Some(depth) = self.params.depth {
@@ -161,7 +158,11 @@ impl Search {
                 if (has_time_limit && ((Instant::now() - start_time) >= search_time))
                     || self.stop.load(Ordering::Relaxed)
                 {
-                    return outer_best.unwrap_or_default().mv;
+                    if let Some(best) = outer_best {
+                        return best.mv;
+                    } else {
+                        return self.root.moves().into_iter().next().unwrap();
+                    }
                 }
 
                 let new_board = self.root.do_move(mv);
@@ -185,7 +186,11 @@ impl Search {
                 value: alpha,
             });
         }
-        outer_best.unwrap_or_default().mv
+        if let Some(best) = outer_best {
+            best.mv
+        } else {
+            self.root.moves().into_iter().next().unwrap()
+        }
     }
 
     fn evaluate(&self, board: &Board) -> Value {
@@ -201,8 +206,6 @@ impl Search {
         color: Color,
     ) -> Value {
         self.nodes_searched += 1;
-        // Update history
-        self.history[self.i + depth - 1] = board.hash();
 
         let moves = board.moves();
 
@@ -227,18 +230,13 @@ impl Search {
         }
 
         // Check repetitions
-        let mut rep = 0;
-
-        let mut i: isize = (self.i + depth - 1) as isize;
-        while i > 0 {
-            if self.history[i as usize] == board.hash() {
-                rep += 1;
-            }
-
-            i -= 2;
-        }
-
-        if rep >= 3 {
+        if self
+            .history
+            .into_iter()
+            .filter(|h| *h == board.hash())
+            .count()
+            >= 2
+        {
             return Value::Draw;
         }
 
@@ -248,7 +246,9 @@ impl Search {
             if !mv.is_cap() {
                 continue;
             }
+            self.history.push(board.hash());
             let value = -self.quiescence(board.do_move(mv), -beta, -alpha, depth + 1, !color);
+            self.history.pop();
 
             if value >= beta {
                 return value;
@@ -275,7 +275,6 @@ impl Search {
     ) -> Value {
         // Update history
         self.nodes_searched += 1;
-        self.history[self.i + depth - 1] = board.hash();
 
         let moves = board.moves();
 
@@ -295,24 +294,20 @@ impl Search {
         }
 
         // Check repetitions
-        let mut rep = 0;
-
-        let mut i: isize = (self.i + depth - 1) as isize;
-        while i > 0 {
-            if self.history[i as usize] == board.hash() {
-                rep += 1;
-            }
-
-            i -= 2;
-        }
-
-        if rep >= 3 {
+        if self
+            .history
+            .into_iter()
+            .filter(|h| *h == board.hash())
+            .count()
+            >= 2
+        {
             return Value::Draw;
         }
 
         // TODO: 50-move rule
 
         for mv in moves {
+            self.history.push(board.hash());
             let value = -self.negamax_alphabeta(
                 board.do_move(mv),
                 -beta,
@@ -321,6 +316,7 @@ impl Search {
                 max_depth,
                 !color,
             );
+            self.history.pop();
 
             if value > alpha {
                 alpha = value;
@@ -333,77 +329,6 @@ impl Search {
 
         alpha
     }
-
-    fn negamax(&mut self, board: Board, depth: usize, max_depth: usize) -> Value {
-        let moves = board.moves();
-
-        if moves.is_empty() {
-            self.nodes_searched += 1;
-            if board.in_check() {
-                return -Value::mate(depth);
-            } else {
-                return Value::Draw;
-            }
-        } else if depth >= max_depth {
-            self.nodes_searched += 1;
-            return self.evaluate(&board);
-        }
-
-        let mut best: Option<Value> = None;
-
-        for mv in moves {
-            let value = -self.negamax(board.do_move(mv), depth + 1, max_depth);
-            best = best.and_then(|b| Some(b.max(value))).or(Some(value));
-        }
-
-        best.unwrap_or_default()
-    }
-
-    fn minimize(&mut self, board: Board, depth: usize, max_depth: usize) -> Value {
-        let moves = board.moves();
-
-        if moves.is_empty() {
-            if board.in_check() {
-                return Value::mate(depth);
-            } else {
-                return Value::Draw;
-            }
-        } else if depth >= max_depth {
-            return self.evaluate(&board);
-        }
-
-        let mut best: Option<Value> = None;
-
-        for mv in moves {
-            let value = self.maximize(board.do_move(mv), depth + 1, max_depth);
-            best = best.and_then(|b| Some(b.min(value))).or(Some(value));
-        }
-
-        best.unwrap_or_default()
-    }
-
-    fn maximize(&mut self, board: Board, depth: usize, max_depth: usize) -> Value {
-        let moves = board.moves();
-
-        if moves.is_empty() {
-            if board.in_check() {
-                return -Value::mate(depth);
-            } else {
-                return Value::Draw;
-            }
-        } else if depth >= max_depth {
-            return self.evaluate(&board);
-        }
-
-        let mut best: Option<Value> = None;
-
-        for mv in moves {
-            let value = self.minimize(board.do_move(mv), depth + 1, max_depth);
-            best = best.and_then(|b| Some(b.max(value))).or(Some(value));
-        }
-
-        best.unwrap_or_default()
-    }
 }
 
 #[cfg(test)]
@@ -413,7 +338,7 @@ mod tests {
         sync::{atomic::AtomicBool, Arc},
     };
 
-    use chess::{
+    use crate::{
         board::{moves::Move, Board},
         uci::{self, SearchParams},
     };

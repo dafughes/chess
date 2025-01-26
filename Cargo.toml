@@ -1,7 +1,19 @@
-[workspace]
-members = ["chess", "engine"]
+[package]
+name = "chess"
+version = "0.1.0"
+edition = "2021"
 
-resolver = "2"
+[lib]
+name = "chess"
+path = "src/lib.rs"
+
+[[bin]]
+name = "engine"
+path = "src/main.rs"
+
+
+[dependencies]
+chrono = "0.4.39"
 
 [profile.test]
 opt-level = 3
