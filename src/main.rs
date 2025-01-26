@@ -14,7 +14,7 @@ pub struct Engine;
 
 impl ChessEngine for Engine {
     fn name() -> String {
-        String::from("Engine v4b")
+        String::from("Engine v5")
     }
 
     fn author() -> String {

@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::bitboard::Bitboard;
 
 use super::{
@@ -105,6 +107,13 @@ impl Movelist {
     pub(crate) fn push(&mut self, mv: Move) {
         self.moves[self.len] = mv;
         self.len += 1;
+    }
+
+    pub fn sort_by<F>(&mut self, compare: F)
+    where
+        F: FnMut(&Move, &Move) -> Ordering,
+    {
+        self.moves[0..self.len].sort_by(compare);
     }
 }
 

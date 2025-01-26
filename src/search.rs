@@ -7,7 +7,12 @@ use std::{
 };
 
 use crate::{
-    board::{color::Color, moves::Move, Board},
+    board::{
+        color::Color,
+        moves::{Move, MoveKind, Movelist},
+        piece::PieceKind,
+        Board,
+    },
     eval::{material, piece_positions},
     uci::SearchParams,
     value::{MoveWithValue, Value},
@@ -79,6 +84,7 @@ pub struct Search {
     params: SearchParams,
     nodes_searched: u64,
     history: StackStack<u64, 1024>,
+    start_time: Instant,
 }
 
 impl Search {
@@ -108,15 +114,49 @@ impl Search {
             params,
             nodes_searched: 0,
             history,
+            start_time: Instant::now(),
         }
     }
 
     fn info(&self, depth: usize, currmove: Move, score: Value, t: Duration) {
         let nps = self.nodes_searched as f64 / t.as_secs_f64();
+        let time = Instant::now() - self.start_time;
         println!(
-            "info depth {} score {} nps {} currmove {}",
-            depth, score, nps as u64, currmove
+            "info depth {} score {} nps {} currmove {} nodes {} time {}",
+            depth,
+            score,
+            nps as u64,
+            currmove,
+            self.nodes_searched,
+            time.as_millis()
         );
+    }
+
+    pub fn order_moves(board: &Board, moves: &mut Movelist) {
+        // Order captures based on most valuable victim - least valuable aggressor
+        // Indexing: [victim][aggressor]
+        const mvv_lva: [[u8; 6]; 6] = [
+            [1, 2, 3, 4, 5, 6], // Victim: Pawn, Aggressors: [P, N, B, R, Q, K, None]
+            [7, 8, 9, 10, 11, 12],
+            [13, 14, 15, 16, 17, 18],
+            [19, 20, 21, 22, 23, 24],
+            [25, 26, 27, 28, 29, 30],
+            [31, 32, 33, 34, 35, 36],
+        ];
+
+        fn rate_capture(mv: &Move, board: &Board) -> u8 {
+            match mv.kind() {
+                MoveKind::EnPassant => 1,
+                MoveKind::Capture | MoveKind::PromotionCapture(_) => {
+                    let aggressor = board.get(mv.from()).unwrap();
+                    let victim = board.get(mv.to()).unwrap();
+                    mvv_lva[victim.kind() as usize][aggressor.kind() as usize]
+                }
+                _ => 0,
+            }
+        }
+
+        moves.sort_by(|a, b| rate_capture(b, board).cmp(&rate_capture(a, board)));
     }
 
     pub fn search_alphabeta(&mut self) -> Move {
@@ -153,7 +193,10 @@ impl Search {
             let mut alpha = -Value::Evaluation(10000000);
             let beta = Value::Evaluation(10000000);
 
-            for mv in self.root.moves() {
+            let mut moves = self.root.moves();
+            Self::order_moves(&self.root, &mut moves);
+
+            for mv in moves {
                 // Check time & stop command
                 if (has_time_limit && ((Instant::now() - start_time) >= search_time))
                     || self.stop.load(Ordering::Relaxed)
@@ -207,7 +250,7 @@ impl Search {
     ) -> Value {
         self.nodes_searched += 1;
 
-        let moves = board.moves();
+        let mut moves = board.moves();
 
         let standing_pat = match color {
             Color::White => self.evaluate(&board),
@@ -241,6 +284,8 @@ impl Search {
         }
 
         // TODO: 50-move rule
+
+        Self::order_moves(&board, &mut moves);
 
         for mv in moves {
             if !mv.is_cap() {
@@ -276,7 +321,7 @@ impl Search {
         // Update history
         self.nodes_searched += 1;
 
-        let moves = board.moves();
+        let mut moves = board.moves();
 
         if moves.is_empty() {
             if board.in_check() {
@@ -305,6 +350,8 @@ impl Search {
         }
 
         // TODO: 50-move rule
+
+        Self::order_moves(&board, &mut moves);
 
         for mv in moves {
             self.history.push(board.hash());
