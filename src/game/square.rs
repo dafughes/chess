@@ -1,4 +1,3 @@
-#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Rank {
     First,
@@ -42,12 +41,6 @@ impl Rank {
     }
 }
 
-impl std::fmt::Display for Rank {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", (*self as u8 + b'1') as char)
-    }
-}
-
 impl TryFrom<char> for Rank {
     type Error = ();
 
@@ -66,7 +59,6 @@ impl TryFrom<char> for Rank {
     }
 }
 
-#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum File {
     A,
@@ -110,12 +102,6 @@ impl File {
     }
 }
 
-impl std::fmt::Display for File {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", (*self as u8 + b'a') as char)
-    }
-}
-
 impl TryFrom<char> for File {
     type Error = ();
 
@@ -135,7 +121,7 @@ impl TryFrom<char> for File {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Square {
     A1,
     B1,
@@ -290,27 +276,6 @@ impl Square {
     }
 }
 
-impl std::fmt::Display for Square {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.file(), self.rank())
-    }
-}
-
-impl std::str::FromStr for Square {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() == 2 {
-            let file = s.chars().nth(0).ok_or(())?.try_into()?;
-            let rank = s.chars().nth(1).ok_or(())?.try_into()?;
-            Ok(Self::new(rank, file))
-        } else {
-            Err(())
-        }
-    }
-}
-
-#[repr(i8)]
 #[derive(Debug, Clone, Copy)]
 pub enum Direction {
     N = 8,

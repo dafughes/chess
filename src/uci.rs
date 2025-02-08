@@ -1,199 +1,203 @@
-use crate::board::{
-    moves::{Move, MoveKind},
-    piece::PieceKind,
-    square::Square,
-    Board,
+use std::{
+    io::BufRead,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread::JoinHandle,
+    time::Instant,
 };
 
-#[derive(Debug)]
-pub enum Command {
-    Uci,
-    Debug(bool),
-    IsReady,
-    SetOption(String, Option<String>),
-    // Register,
-    UciNewGame,
-    Position(String, Vec<String>),
-    Go(SearchParams),
-    Stop,
-    PonderHit,
-    Quit,
+use crate::{
+    game::{
+        moves::{Move, MoveKind},
+        perft_divide,
+        square::Square,
+        Game,
+    },
+    search::search,
+};
 
-    // Non-uci debug commands
-    Display,
-    Perft(usize),
-}
-
-#[derive(Debug)]
 pub struct SearchParams {
-    pub searchmoves: Vec<String>,
-    pub ponder: bool,
-    pub wtime: Option<usize>,
-    pub btime: Option<usize>,
-    pub winc: Option<usize>,
-    pub binc: Option<usize>,
-    pub movestogo: Option<usize>,
-    pub depth: Option<usize>,
-    pub nodes: Option<usize>,
-    pub mate: Option<usize>,
-    pub movetime: Option<usize>,
-    pub infinite: bool,
+    pub wtime: u32,
+    pub btime: u32,
+    pub depth: usize,
 }
 
 impl SearchParams {
     pub fn new() -> Self {
         Self {
-            searchmoves: vec![],
-            ponder: false,
-            wtime: None,
-            btime: None,
-            winc: None,
-            binc: None,
-            movestogo: None,
-            depth: None,
-            nodes: None,
-            mate: None,
-            movetime: None,
-            infinite: false,
+            wtime: 60000,
+            btime: 60000,
+            depth: 1,
         }
     }
 }
 
-#[derive(Debug)]
-pub enum ParseCommandError {
-    Invalid,
-    Unknown,
-    Unsupported(String),
-}
+const ENGINE_NAME: &str = "Engine";
+const ENGINE_AUTHOR: &str = "Sam";
 
-impl std::fmt::Display for ParseCommandError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseCommandError::Invalid => write!(f, "Invalid UCI command"),
-            ParseCommandError::Unknown => write!(f, "Unknown UCI command"),
-            ParseCommandError::Unsupported(s) => {
-                write!(f, "Unsupported UCI command '{}'", s)
-            }
+fn parse_game(command: &str) -> Option<Game> {
+    let mut game = match command.split_ascii_whitespace().nth(1)? {
+        "startpos" => Game::default(),
+        "fen" => Game::new(
+            command
+                .split_ascii_whitespace()
+                .skip(2)
+                .take_while(|token| *token != "moves")
+                .fold(String::new(), |a, b| a + " " + b)
+                .trim(),
+        )?,
+        _ => return None,
+    };
+
+    if let Some((_, moves)) = command.split_once("moves") {
+        for mv in moves.split_ascii_whitespace() {
+            let mv = parse_move(&mut game, mv)?;
+            game.push(mv);
         }
     }
+
+    Some(game)
 }
 
-impl std::error::Error for ParseCommandError {}
+fn parse_go(command: &str) -> Option<SearchParams> {
+    let mut params = SearchParams {
+        wtime: 0,
+        btime: 0,
+        depth: 0,
+    };
 
-impl std::str::FromStr for Command {
-    type Err = ParseCommandError;
+    let mut tokens = command.split_ascii_whitespace().skip(1);
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut tokens = s.split_ascii_whitespace();
+    while let Some(t) = tokens.next() {
+        match t {
+            "wtime" => params.wtime = tokens.next()?.parse::<u32>().ok()?,
+            "btime" => params.btime = tokens.next()?.parse::<u32>().ok()?,
+            "depth" => params.depth = tokens.next()?.parse::<usize>().ok()?,
+            _ => (),
+        }
+    }
 
-        match tokens.next().ok_or(ParseCommandError::Unknown)? {
-            "uci" => Ok(Command::Uci),
-            "isready" => Ok(Command::IsReady),
-            "position" => {
-                let fen = match tokens.next().ok_or(ParseCommandError::Invalid)? {
-                    "startpos" => Board::STARTPOS.to_string(),
-                    "fen" => tokens
-                        .by_ref()
-                        .take_while(|token| *token != "moves")
-                        .fold(String::new(), |a, b| a + " " + b)
-                        .trim()
-                        .to_string(),
-                    _ => return Err(ParseCommandError::Invalid),
-                };
+    Some(params)
+}
 
-                let moves = tokens
-                    .filter(|mv| *mv != "moves")
-                    .map(|mv| mv.to_string())
-                    .collect();
-                Ok(Command::Position(fen, moves))
-            }
-            "go" => {
-                let mut params = SearchParams {
-                    searchmoves: vec![],
-                    ponder: false,
-                    wtime: None,
-                    btime: None,
-                    winc: None,
-                    binc: None,
-                    movestogo: None,
-                    depth: None,
-                    nodes: None,
-                    mate: None,
-                    movetime: None,
-                    infinite: false,
-                };
+pub fn main_loop() {
+    let stdin = std::io::stdin();
 
-                macro_rules! parse_usize {
-                    ($t: ident) => {
-                        Some(
-                            $t.next()
-                                .ok_or(ParseCommandError::Invalid)?
-                                .parse::<usize>()
-                                .map_err(|_| ParseCommandError::Invalid)?,
-                        )
-                    };
+    let mut game = Game::default();
+    let stop = Arc::new(AtomicBool::new(false));
+    let mut search_handle: Option<JoinHandle<()>> = None;
+
+    for line in stdin.lock().lines() {
+        let line = line.unwrap();
+
+        if let Some(command) = line.split_ascii_whitespace().next() {
+            match command {
+                "quit" => {
+                    stop.store(true, Ordering::Relaxed);
+                    break;
                 }
+                "stop" => {
+                    stop.store(true, Ordering::Relaxed);
+                }
+                "uci" => {
+                    println!("uciok");
+                    println!("id name {ENGINE_NAME}");
+                    println!("id author {ENGINE_AUTHOR}");
+                }
+                "ucinewgame" => {}
+                "isready" => {
+                    println!("readyok");
+                }
+                "position" => game = parse_game(line.as_str()).unwrap_or_default(),
+                "go" => {
+                    // Reset stop and wait for possible old search
+                    stop.store(false, Ordering::Relaxed);
+                    if let Some(h) = search_handle.take() {
+                        h.join().unwrap();
+                    }
 
-                while let Some(token) = tokens.next() {
-                    // TODO: maybe implement all params?
-                    match token {
-                        "wtime" => params.wtime = parse_usize!(tokens),
-                        "btime" => params.btime = parse_usize!(tokens),
-                        "winc" => params.winc = parse_usize!(tokens),
-                        "binc" => params.binc = parse_usize!(tokens),
-                        "depth" => params.depth = parse_usize!(tokens),
-                        "nodes" => params.nodes = parse_usize!(tokens),
-                        "mate" => params.mate = parse_usize!(tokens),
-                        "movetime" => params.movetime = parse_usize!(tokens),
-                        "infinite" => params.infinite = true,
-                        _ => return Err(ParseCommandError::Invalid),
+                    if let Some(params) = parse_go(line.as_str()) {
+                        search_handle = Some(std::thread::spawn({
+                            let game_clone = game.clone();
+                            let stop_clone = stop.clone();
+                            || {
+                                let (bestmove, _) = search(game_clone, params, stop_clone);
+                                println!("bestmove {bestmove}");
+                            }
+                        }));
                     }
                 }
+                "d" => println!("{game}"),
+                "perft" => {
+                    let depth = line
+                        .split_ascii_whitespace()
+                        .skip(1)
+                        .next()
+                        .and_then(|d| d.parse::<usize>().ok())
+                        .unwrap_or(1);
 
-                Ok(Command::Go(params))
+                    let t0 = Instant::now();
+                    let nodes = perft_divide(&mut game, depth);
+                    let elapsed = (Instant::now() - t0).as_secs_f64();
+                    let nps = nodes as f64 / elapsed;
+                    let (nps, prefix) = if nps > 1e6 {
+                        (nps / 1e6, "M")
+                    } else if nps > 1e3 {
+                        (nps / 1e3, "k")
+                    } else {
+                        (nps, "")
+                    };
+                    println!(
+                        "Leaf nodes searched: {}, time elapsed: {:.2} s, {:.2} {}nps",
+                        nodes, elapsed, nps, prefix
+                    );
+                }
+                _ => (),
             }
-            "stop" => Ok(Command::Stop),
-            "quit" => Ok(Command::Quit),
-            "d" => Ok(Command::Display),
-            "perft" => {
-                let depth = tokens
-                    .next()
-                    .ok_or(ParseCommandError::Invalid)?
-                    .parse::<usize>()
-                    .map_err(|_| ParseCommandError::Invalid)?;
-                Ok(Command::Perft(depth))
-            }
-            "ucinewgame" => Ok(Command::UciNewGame),
-            "debug" => Err(ParseCommandError::Unsupported(String::from("debug"))),
-            "setoption" => Err(ParseCommandError::Unsupported(String::from("setoption"))),
-            "ponderhit" => Err(ParseCommandError::Unsupported(String::from("ponderhit"))),
-            _ => Err(ParseCommandError::Unknown),
         }
+    }
+    if let Some(h) = search_handle.take() {
+        h.join().unwrap();
     }
 }
 
-pub fn parse_move(board: &Board, m: &str) -> Result<Move, ()> {
-    if m.len() > 5 {
-        return Err(());
+pub fn parse_move(game: &mut Game, m: &str) -> Option<Move> {
+    if m.len() < 4 || m.len() > 5 {
+        return None;
     }
-    let from: Square = m.chars().take(2).collect::<String>().parse()?;
-    let to: Square = m.chars().skip(2).take(2).collect::<String>().parse()?;
 
-    if let Some(c) = m.chars().nth(4) {
-        let promotion_kind: PieceKind = c.try_into()?;
-        let mv = board.moves().into_iter().find(|mv| match mv.kind() {
-            MoveKind::Promotion(kind) | MoveKind::PromotionCapture(kind) => {
-                mv.from() == from && mv.to() == to && kind == promotion_kind
-            }
-            _ => false,
-        });
-        mv.ok_or(())
+    let from = Square::new(
+        m.chars().nth(1)?.try_into().ok()?,
+        m.chars().nth(0)?.try_into().ok()?,
+    );
+    let to = Square::new(
+        m.chars().nth(3)?.try_into().ok()?,
+        m.chars().nth(2)?.try_into().ok()?,
+    );
+
+    let move_candidates = game
+        .moves()
+        .into_iter()
+        .filter(|mv| mv.from() == from && mv.to() == to)
+        .collect::<Vec<_>>();
+
+    if move_candidates.is_empty() {
+        None
+    } else if move_candidates.len() == 1 {
+        move_candidates.first().copied()
     } else {
-        let mv = board
-            .moves()
-            .into_iter()
-            .find(|mv| mv.from() == from && mv.to() == to);
-
-        mv.ok_or(())
+        // Is a promotion
+        let promotion_kind = m.chars().nth(4)?.try_into().ok()?;
+        move_candidates
+            .iter()
+            .find(|mv| match mv.kind() {
+                MoveKind::Promotion(kind) | MoveKind::PromotionCapture(kind) => {
+                    kind == promotion_kind
+                }
+                _ => false,
+            })
+            .copied()
     }
 }

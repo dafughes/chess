@@ -1,29 +1,67 @@
-use crate::board::{
+use super::{
     color::Color,
     square::{Direction, File, Rank, Square},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Bitboard(u64);
 
 impl Bitboard {
+    pub const EMPTY: Self = Self(0);
+
     pub fn new() -> Self {
         Self(0)
     }
 
+    /// # Examples
+    ///
+    /// ```
+    /// use chess::game::bitboard::Bitboard;
+    ///
+    /// let bb = Bitboard::EMPTY;
+    /// assert!(bb.is_empty());
+    /// ```
     pub fn is_empty(self) -> bool {
         self.0 == 0
     }
 
+    /// # Examples
+    ///
+    /// ```
+    /// use chess::game::bitboard::Bitboard;
+    ///
+    /// let bb = Bitboard::EMPTY;
+    /// assert!(!bb.is_non_empty());
+    /// ```
     pub fn is_non_empty(self) -> bool {
         !self.is_empty()
     }
 
     /// Returns true if `other` is a subset of `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chess::game::bitboard::Bitboard;
+    /// use chess::game::square::{Square, Rank};
+    ///
+    /// assert!(Bitboard::from(Rank::Sixth).contains(Bitboard::from(Square::B6)));
+    /// ```
     pub fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
 
+    /// Returns the number of squares set in `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chess::game::bitboard::Bitboard;
+    /// use chess::game::square::Square;
+    ///
+    /// assert_eq!(Bitboard::EMPTY.popcount(), 0);
+    /// assert_eq!(Bitboard::from(Square::E4).popcount(), 1);
+    /// ```
     pub fn popcount(self) -> usize {
         self.0.count_ones() as usize
     }
@@ -39,6 +77,17 @@ impl Bitboard {
         }
     }
 
+    /// Shifts every bit in `self` one step in `direction`. Shifts that would result in wrapping around are masked out.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chess::game::bitboard::Bitboard;
+    /// use chess::game::square::{Square, Direction};
+    ///
+    /// assert_eq!(Bitboard::from(Square::E4).shift(Direction::SW), Bitboard::from(Square::D3));
+    /// assert_eq!(Bitboard::from(Square::H6).shift(Direction::NE), Bitboard::EMPTY);
+    /// ```
     pub fn shift(self, direction: Direction) -> Self {
         const NOT_A: u64 = !0x0101010101010101;
         const NOT_H: u64 = !0x8080808080808080;
@@ -55,6 +104,16 @@ impl Bitboard {
         }
     }
 
+    /// Starting from square `from`, goes in a straight line in `direction` while inside the board and not blocked by bits in `occupied`.
+    /// Returns bits up to and including encountered occupied square but excluding `from`.
+    /// # Examples
+    ///
+    /// ```
+    /// use chess::game::bitboard::Bitboard;
+    /// use chess::game::square::{Square, Direction};
+    ///
+    /// assert_eq!(Bitboard::ray(Square::E4, Direction::SW, Bitboard::EMPTY), Bitboard::from(Square::D3) | Bitboard::from(Square::C2) | Bitboard::from(Square::B1));
+    /// ```
     pub fn ray(from: Square, direction: Direction, occupied: Self) -> Self {
         let mut bb = Bitboard::from(from).shift(direction);
         let mut result = Bitboard::new();
@@ -115,12 +174,6 @@ impl Bitboard {
     }
 }
 
-impl Default for Bitboard {
-    fn default() -> Self {
-        Self(0)
-    }
-}
-
 impl From<Square> for Bitboard {
     fn from(value: Square) -> Self {
         Self(1 << value as usize)
@@ -136,32 +189,6 @@ impl From<Rank> for Bitboard {
 impl From<File> for Bitboard {
     fn from(value: File) -> Self {
         Self(0x0101010101010101 << value as usize)
-    }
-}
-
-pub struct BitboardIntoIterator(u64);
-
-impl Iterator for BitboardIntoIterator {
-    type Item = Square;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.0 == 0 {
-            None
-        } else {
-            let i = self.0.trailing_zeros() as u8;
-            let square = Square::from_u8(i);
-            self.0 &= self.0.wrapping_sub(1);
-            Some(square)
-        }
-    }
-}
-
-impl IntoIterator for Bitboard {
-    type Item = Square;
-    type IntoIter = BitboardIntoIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        BitboardIntoIterator(self.0)
     }
 }
 
@@ -215,40 +242,51 @@ impl std::ops::BitXorAssign for Bitboard {
     }
 }
 
-#[cfg(test)]
-mod tests {
+pub struct BitboardIntoIterator(u64);
 
-    use crate::{
-        bitboard::Bitboard,
-        board::square::{Rank, Square},
-    };
+impl Iterator for BitboardIntoIterator {
+    type Item = Square;
 
-    #[test]
-    fn popcount() {
-        assert_eq!(Bitboard(3).popcount(), 2);
-        assert_eq!(Bitboard(255).popcount(), 8);
-        assert_eq!(Bitboard::from(Rank::Seventh).popcount(), 8);
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0 == 0 {
+            None
+        } else {
+            let i = self.0.trailing_zeros() as u8;
+            let square = Square::from_u8(i);
+            self.0 &= self.0.wrapping_sub(1);
+            Some(square)
+        }
     }
+}
 
-    #[test]
-    fn shift() {
-        assert_eq!(
-            Bitboard::from(Square::E4).shift(super::Direction::NW),
-            Bitboard::from(Square::D5)
-        );
+impl IntoIterator for Bitboard {
+    type Item = Square;
+    type IntoIter = BitboardIntoIterator;
 
-        assert_eq!(
-            Bitboard::from(Rank::First).shift(super::Direction::NE),
-            Bitboard::from(Rank::Second) ^ Bitboard::from(Square::A2)
-        );
+    fn into_iter(self) -> Self::IntoIter {
+        BitboardIntoIterator(self.0)
     }
+}
 
-    #[test]
-    fn ray() {
-        let squares: Vec<_> = Bitboard::ray(Square::E4, super::Direction::SW, Bitboard::new())
-            .into_iter()
-            .collect();
+impl std::fmt::Display for Bitboard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "   | a | b | c | d | e | f | g | h |")?;
+        writeln!(f, "   +---+---+---+---+---+---+---+---+---")?;
 
-        assert_eq!(squares, vec![Square::B1, Square::C2, Square::D3]);
+        for rank in Rank::iter().rev() {
+            write!(f, " {} |", rank as usize + 1)?;
+            for file in File::iter() {
+                let square = Square::new(rank, file);
+
+                if self.contains(Bitboard::from(square)) {
+                    write!(f, " X |")?;
+                } else {
+                    write!(f, "   |")?;
+                }
+            }
+            writeln!(f, " {}", rank as usize + 1)?;
+            writeln!(f, "   +---+---+---+---+---+---+---+---+---")?;
+        }
+        writeln!(f, "   | a | b | c | d | e | f | g | h |")
     }
 }

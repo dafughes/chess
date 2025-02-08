@@ -1,57 +1,14 @@
 use super::color::Color;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PieceKind {
-    Pawn,
-    Knight,
-    Bishop,
-    Rook,
-    Queen,
-    King,
-}
-
-impl PieceKind {
-    pub fn iter() -> impl Iterator<Item = PieceKind> {
-        [
-            PieceKind::Pawn,
-            PieceKind::Knight,
-            PieceKind::Bishop,
-            PieceKind::Rook,
-            PieceKind::Queen,
-            PieceKind::King,
-        ]
-        .iter()
-        .copied()
-    }
-}
-
-impl From<PieceKind> for char {
-    fn from(value: PieceKind) -> Self {
-        match value {
-            PieceKind::Pawn => 'p',
-            PieceKind::Knight => 'n',
-            PieceKind::Bishop => 'b',
-            PieceKind::Rook => 'r',
-            PieceKind::Queen => 'q',
-            PieceKind::King => 'k',
-        }
-    }
-}
-
-impl TryFrom<char> for PieceKind {
-    type Error = ();
-
-    fn try_from(value: char) -> Result<Self, Self::Error> {
-        match value {
-            'p' => Ok(PieceKind::Pawn),
-            'n' => Ok(PieceKind::Knight),
-            'b' => Ok(PieceKind::Bishop),
-            'r' => Ok(PieceKind::Rook),
-            'q' => Ok(PieceKind::Queen),
-            'k' => Ok(PieceKind::King),
-            _ => Err(()),
-        }
-    }
+    Pawn = 0,
+    Knight = 1,
+    Bishop = 2,
+    Rook = 3,
+    Queen = 4,
+    King = 5,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -72,7 +29,7 @@ pub enum Piece {
 
 impl Piece {
     /// ```
-    /// use chess::board::{color::Color, piece::{PieceKind, Piece}};
+    /// use chess::game::{color::Color, piece::{PieceKind, Piece}};
     /// assert_eq!(Piece::new(PieceKind::Knight, Color::Black), Piece::BlackKnight);
     /// assert_eq!(Piece::new(PieceKind::Rook, Color::White), Piece::WhiteRook);
     /// ```
@@ -94,7 +51,7 @@ impl Piece {
     }
 
     /// ```
-    /// use chess::board::piece::{PieceKind, Piece};
+    /// use chess::game::piece::{PieceKind, Piece};
     /// assert_eq!(Piece::BlackQueen.kind(), PieceKind::Queen);
     /// assert_eq!(Piece::WhitePawn.kind(), PieceKind::Pawn);
     /// assert_eq!(Piece::BlackBishop.kind(), PieceKind::Bishop);
@@ -111,7 +68,7 @@ impl Piece {
     }
 
     /// ```
-    /// use chess::board::{color::Color, piece::Piece};
+    /// use chess::game::{color::Color, piece::Piece};
     /// assert_eq!(Piece::BlackQueen.color(), Color::Black);
     /// assert_eq!(Piece::WhitePawn.color(), Color::White);
     /// assert_eq!(Piece::BlackBishop.color(), Color::Black);
@@ -125,6 +82,44 @@ impl Piece {
             | Piece::WhiteQueen
             | Piece::WhiteKing => Color::White,
             _ => Color::Black,
+        }
+    }
+}
+
+impl TryFrom<char> for PieceKind {
+    type Error = ();
+
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        match value {
+            'p' => Ok(PieceKind::Pawn),
+            'n' => Ok(PieceKind::Knight),
+            'b' => Ok(PieceKind::Bishop),
+            'r' => Ok(PieceKind::Rook),
+            'q' => Ok(PieceKind::Queen),
+            'k' => Ok(PieceKind::King),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<char> for Piece {
+    type Error = ();
+
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        match value {
+            'P' => Ok(Piece::WhitePawn),
+            'N' => Ok(Piece::WhiteKnight),
+            'B' => Ok(Piece::WhiteBishop),
+            'R' => Ok(Piece::WhiteRook),
+            'Q' => Ok(Piece::WhiteQueen),
+            'K' => Ok(Piece::WhiteKing),
+            'p' => Ok(Piece::BlackPawn),
+            'n' => Ok(Piece::BlackKnight),
+            'b' => Ok(Piece::BlackBishop),
+            'r' => Ok(Piece::BlackRook),
+            'q' => Ok(Piece::BlackQueen),
+            'k' => Ok(Piece::BlackKing),
+            _ => Err(()),
         }
     }
 }
@@ -148,24 +143,15 @@ impl From<Piece> for char {
     }
 }
 
-impl TryFrom<char> for Piece {
-    type Error = ();
-
-    fn try_from(value: char) -> Result<Self, Self::Error> {
+impl From<PieceKind> for char {
+    fn from(value: PieceKind) -> Self {
         match value {
-            'P' => Ok(Piece::WhitePawn),
-            'N' => Ok(Piece::WhiteKnight),
-            'B' => Ok(Piece::WhiteBishop),
-            'R' => Ok(Piece::WhiteRook),
-            'Q' => Ok(Piece::WhiteQueen),
-            'K' => Ok(Piece::WhiteKing),
-            'p' => Ok(Piece::BlackPawn),
-            'n' => Ok(Piece::BlackKnight),
-            'b' => Ok(Piece::BlackBishop),
-            'r' => Ok(Piece::BlackRook),
-            'q' => Ok(Piece::BlackQueen),
-            'k' => Ok(Piece::BlackKing),
-            _ => Err(()),
+            PieceKind::Pawn => 'p',
+            PieceKind::Knight => 'n',
+            PieceKind::Bishop => 'b',
+            PieceKind::Rook => 'r',
+            PieceKind::Queen => 'q',
+            PieceKind::King => 'k',
         }
     }
 }
