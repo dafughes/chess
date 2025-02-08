@@ -65,7 +65,6 @@ pub fn search(mut game: Game, params: SearchParams, stop: Arc<AtomicBool>) -> (M
         };
 
         let search_time_ms = Duration::from_millis(time_left_ms as u64 / moves_left as u64);
-        println!("{:?}", search_time_ms);
         let start_time = Instant::now();
 
         let mut best_move: Option<Move> = None;
@@ -82,11 +81,6 @@ pub fn search(mut game: Game, params: SearchParams, stop: Arc<AtomicBool>) -> (M
                 > Duration::from_secs_f64(search_time_ms.as_secs_f64() * 1.5)
             {
                 // Don't start a new search if it takes too much time
-                println!(
-                    "{:?}, {:?}",
-                    Instant::now() - start_time,
-                    predicted_search_time
-                );
                 break;
             }
 
@@ -105,8 +99,11 @@ pub fn search(mut game: Game, params: SearchParams, stop: Arc<AtomicBool>) -> (M
             best_score = score;
 
             println!(
-                "info depth {} score {} nodes {}",
-                depth, score, nodes_searched
+                "info depth {} score {} nodes {} nps {}",
+                depth,
+                score,
+                nodes_searched,
+                (nodes_searched as f64 / (Instant::now() - start_time).as_secs_f64()) as u64
             );
         }
 

@@ -14,7 +14,7 @@ pub mod piece;
 pub mod square;
 
 #[derive(Debug, Clone, Copy, Default)]
-struct State {
+pub struct State {
     castling_rights: CastlingRights,
     en_passant_square: Option<Square>,
     fifty_move_counter: u32,
