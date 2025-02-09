@@ -82,6 +82,10 @@ impl std::fmt::Display for Score {
     }
 }
 
+pub fn evaluate(game: &Game) -> Score {
+    material(game) + piece_positions(game)
+}
+
 pub fn material(game: &Game) -> Score {
     let values = [
         (PieceKind::Pawn, 100),

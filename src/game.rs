@@ -828,6 +828,10 @@ impl Game {
         self.state[self.ply].fifty_move_counter()
     }
 
+    pub fn move_history(&self) -> Vec<Move> {
+        self.moves[1..=self.ply].iter().copied().collect()
+    }
+
     /// Is `color` in check? Used internally in legal move filtering.
     fn color_in_check(&self, color: Color) -> bool {
         let king_square = (self.pieces_by_kind(PieceKind::King) & self.pieces_by_color(color))

@@ -11,7 +11,8 @@ path = "src/lib.rs"
 name = "engine"
 path = "src/main.rs"
 
-
+[dependencies]
+chrono = "0.4.39"
 
 [profile.test]
 opt-level = 3

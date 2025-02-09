@@ -29,7 +29,7 @@ impl SearchParams {
         Self {
             wtime: 60000,
             btime: 60000,
-            depth: 1,
+            depth: 0,
         }
     }
 }
@@ -37,7 +37,7 @@ impl SearchParams {
 const ENGINE_NAME: &str = "Engine";
 const ENGINE_AUTHOR: &str = "Sam";
 
-fn parse_game(command: &str) -> Option<Game> {
+pub fn parse_position(command: &str) -> Option<Game> {
     let mut game = match command.split_ascii_whitespace().nth(1)? {
         "startpos" => Game::default(),
         "fen" => Game::new(
@@ -61,7 +61,7 @@ fn parse_game(command: &str) -> Option<Game> {
     Some(game)
 }
 
-fn parse_go(command: &str) -> Option<SearchParams> {
+pub fn parse_go(command: &str) -> Option<SearchParams> {
     let mut params = SearchParams {
         wtime: 0,
         btime: 0,
@@ -110,7 +110,7 @@ pub fn main_loop() {
                 "isready" => {
                     println!("readyok");
                 }
-                "position" => game = parse_game(line.as_str()).unwrap_or_default(),
+                "position" => game = parse_position(line.as_str()).unwrap_or_default(),
                 "go" => {
                     // Reset stop and wait for possible old search
                     stop.store(false, Ordering::Relaxed);

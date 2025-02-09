@@ -1,13 +1,12 @@
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    time::{Duration, Instant},
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
 };
 
+use chrono::Duration;
+
 use crate::{
-    eval::{material, piece_positions, Score},
+    eval::{evaluate, Score},
     game::{
         color::Color,
         moves::{Move, MoveKind, Movelist},
@@ -15,10 +14,6 @@ use crate::{
     },
     uci::SearchParams,
 };
-
-fn evaluate(game: &Game) -> Score {
-    material(game) + piece_positions(game)
-}
 
 fn order_moves(game: &Game, moves: &mut Movelist) {
     // Order captures based on most valuable victim - least valuable aggressor
@@ -50,68 +45,74 @@ fn order_moves(game: &Game, moves: &mut Movelist) {
 pub fn search(mut game: Game, params: SearchParams, stop: Arc<AtomicBool>) -> (Move, Score) {
     let mut nodes_searched = 0;
 
-    if params.depth > 0 {
-        search_depth(&mut game, params.depth, &params, &stop, &mut nodes_searched)
+    // Time management
+    let average_moves_per_game = 70;
+    let moves_left = average_moves_per_game - game.fullmove_number();
+
+    let (max_depth, time_left_ms) = if params.depth > 0 {
+        // Hacky solution for searching to a depth and making sure to not run out of time
+        (params.depth, 1_000_000_000) // ~278 h should do
     } else {
         const MAX_DEPTH: usize = 16;
+        match game.color_to_move() {
+            Color::White => (MAX_DEPTH, params.wtime),
+            Color::Black => (MAX_DEPTH, params.btime),
+        }
+    };
 
-        // Time management
-        let average_moves_per_game = 70;
-        let moves_left = average_moves_per_game - game.fullmove_number();
+    let search_time_ms = Duration::milliseconds(time_left_ms as i64 / moves_left as i64);
+    let start_time = chrono::offset::Local::now();
 
-        let time_left_ms = match game.color_to_move() {
-            Color::White => params.wtime,
-            Color::Black => params.btime,
-        };
+    let mut best_move: Option<Move> = None;
+    let mut best_score = Score::Min;
 
-        let search_time_ms = Duration::from_millis(time_left_ms as u64 / moves_left as u64);
-        let start_time = Instant::now();
+    let mut prev_start = chrono::offset::Local::now();
+    let mut prev_time = Duration::milliseconds(0);
 
-        let mut best_move: Option<Move> = None;
-        let mut best_score = Score::Min;
+    for depth in 1..=max_depth {
+        let average_branching_factor = 30;
+        let predicted_search_time = prev_time * average_branching_factor;
 
-        let mut prev_start = Instant::now();
-        let mut prev_time = Duration::from_millis(0);
+        let x = (search_time_ms.num_milliseconds() as f64 * 1.5) as i64
+            - ((chrono::offset::Local::now() - prev_start) + predicted_search_time)
+                .num_milliseconds();
 
-        for depth in 1..=MAX_DEPTH {
-            let average_branching_factor = 30;
-            let predicted_search_time = prev_time * average_branching_factor;
+        if x < 0 {
+            // Don't start a new search if it takes too much time
 
-            if (Instant::now() - prev_start) + predicted_search_time
-                > Duration::from_secs_f64(search_time_ms.as_secs_f64() * 1.5)
-            {
-                // Don't start a new search if it takes too much time
-                break;
-            }
-
-            // Check time/stop
-            if stop.load(Ordering::Relaxed) {
-                break;
-            }
-
-            let (mv, score) = search_depth(&mut game, depth, &params, &stop, &mut nodes_searched);
-            prev_time = Instant::now() - prev_start;
-            prev_start = Instant::now();
-
-            let score = -score;
-
-            best_move = Some(mv);
-            best_score = score;
-
-            println!(
-                "info depth {} score {} nodes {} nps {}",
-                depth,
-                score,
-                nodes_searched,
-                (nodes_searched as f64 / (Instant::now() - start_time).as_secs_f64()) as u64
-            );
+            break;
         }
 
-        (best_move.unwrap_or_default(), best_score)
+        // Check time/stop
+        if stop.load(Ordering::Relaxed) {
+            break;
+        }
+
+        let (mv, score) = search_depth(&mut game, depth, &params, &stop, &mut nodes_searched);
+        prev_time = chrono::offset::Local::now() - prev_start;
+        prev_start = chrono::offset::Local::now();
+
+        let score = -score;
+
+        best_move = Some(mv);
+        best_score = score;
+
+        println!(
+            "info depth {} score {} nodes {} nps {}",
+            depth,
+            score,
+            nodes_searched,
+            (1000000.0 * nodes_searched as f64
+                / (chrono::offset::Local::now() - start_time)
+                    .num_microseconds()
+                    .unwrap_or(1) as f64) as i64
+        );
     }
+
+    (best_move.unwrap_or_default(), best_score)
 }
 
-pub fn search_depth(
+fn search_depth(
     game: &mut Game,
     max_depth: usize,
     params: &SearchParams,
@@ -267,10 +268,23 @@ mod tests {
     use std::sync::{atomic::AtomicBool, Arc};
 
     use crate::{
-        game::Game,
+        game::{moves::Move, Game},
         search::search_depth,
         uci::{self, SearchParams},
     };
+
+    use super::search;
+
+    fn search_to_depth(fen: &str, depth: usize, correct: &str) {
+        let mut game = Game::new(fen).unwrap();
+        let mut params = SearchParams::new();
+        params.depth = depth;
+        assert_eq!(
+            uci::parse_move(&mut game, correct).unwrap(),
+            search(game, params, Arc::new(AtomicBool::new(false)),).0,
+            "FEN: {fen}"
+        );
+    }
 
     #[test]
     fn mate_in_2() {
@@ -289,120 +303,37 @@ mod tests {
         ];
 
         for (fen, mv) in test_positions {
-            let mut game = Game::new(fen).unwrap();
-            assert_eq!(
-                uci::parse_move(&mut game, mv).unwrap(),
-                search_depth(
-                    &mut game,
-                    3,
-                    &SearchParams::new(),
-                    &Arc::new(AtomicBool::new(false)),
-                    &mut 0
-                )
-                .0,
-                "FEN: {fen}"
-            );
+            search_to_depth(fen, 3, mv);
         }
     }
 
     #[test]
     fn mate_in_3a() {
         let fen = "2r3k1/p4p2/3Rp2p/1p2P1pK/8/1P4P1/P3Q2P/1q6 b - -";
-        let mut game = Game::new(fen).unwrap();
-        let mv = uci::parse_move(&mut game, "b1g6").unwrap();
-        assert_eq!(
-            search_depth(
-                &mut game,
-                5,
-                &SearchParams::new(),
-                &Arc::new(AtomicBool::new(false)),
-                &mut 0
-            )
-            .0,
-            mv,
-            "FEN: {}",
-            fen
-        );
+        search_to_depth(fen, 5, "b1g6");
     }
 
     #[test]
     fn mate_in_3b() {
         let fen = "1k5r/pP3ppp/3p2b1/1BN1n3/1Q2P3/P1B5/KP3P1P/7q w - -";
-
-        let mut game = Game::new(fen).unwrap();
-        let mv = uci::parse_move(&mut game, "c5a6").unwrap();
-        assert_eq!(
-            search_depth(
-                &mut game,
-                5,
-                &SearchParams::new(),
-                &Arc::new(AtomicBool::new(false)),
-                &mut 0
-            )
-            .0,
-            mv,
-            "FEN: {}",
-            fen
-        );
+        search_to_depth(fen, 5, "c5a6");
     }
 
     #[test]
     fn mate_in_3c() {
         let fen = "3r4/pR2N3/2pkb3/5p2/8/2B5/qP3PPP/4R1K1 w - -";
-        let mut game = Game::new(fen).unwrap();
-        let mv = uci::parse_move(&mut game, "c3e5").unwrap();
-        assert_eq!(
-            search_depth(
-                &mut game,
-                5,
-                &SearchParams::new(),
-                &Arc::new(AtomicBool::new(false)),
-                &mut 0
-            )
-            .0,
-            mv,
-            "FEN: {}",
-            fen
-        );
+        search_to_depth(fen, 5, "c3e5");
     }
 
     #[test]
     fn mate_in_3d() {
         let fen = "R6R/1r3pp1/4p1kp/3pP3/1r2qPP1/7P/1P1Q3K/8 w - -";
-        let mut game = Game::new(fen).unwrap();
-        let mv = uci::parse_move(&mut game, "f4f5").unwrap();
-        assert_eq!(
-            search_depth(
-                &mut game,
-                5,
-                &SearchParams::new(),
-                &Arc::new(AtomicBool::new(false)),
-                &mut 0
-            )
-            .0,
-            mv,
-            "FEN: {}",
-            fen
-        );
+        search_to_depth(fen, 5, "f4f5");
     }
 
     #[test]
     fn mate_in_4() {
         let fen = "8/k2r4/p7/2b1Bp2/P3p3/qp4R1/4QP2/1K6 b - - 0 1";
-        let mut game = Game::new(fen).unwrap();
-        let mv = uci::parse_move(&mut game, "d7d1").unwrap();
-        assert_eq!(
-            search_depth(
-                &mut game,
-                7,
-                &SearchParams::new(),
-                &Arc::new(AtomicBool::new(false)),
-                &mut 0
-            )
-            .0,
-            mv,
-            "FEN: {}",
-            fen
-        );
+        search_to_depth(fen, 7, "d7d1");
     }
 }
